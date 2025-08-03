@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bullet Programming Shooter</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        <div id="game-canvas"></div>
+        <div id="ui-panel">
+            <div id="rpa-builder">
+                <h3>RPA Builder</h3>
+                <div id="node-palette">
+                    <div class="node-category">
+                        <h4>WHEN (いつ)</h4>
+                        <div class="node" data-type="when" data-action="immediate">即座に</div>
+                        <div class="node" data-type="when" data-action="timer-1">1秒後</div>
+                        <div class="node" data-type="when" data-action="timer-2">2秒後</div>
+                        <div class="node" data-type="when" data-action="enemy-contact">敵に接触時</div>
+                        <div class="node" data-type="when" data-action="wall-contact">壁に接触時</div>
+                    </div>
+                    <div class="node-category">
+                        <h4>IF (もし)</h4>
+                        <div class="node" data-type="if" data-action="enemy-near">敵が近い</div>
+                        <div class="node" data-type="if" data-action="enemy-far">敵が遠い</div>
+                        <div class="node" data-type="if" data-action="enemy-many">敵が3体以上</div>
+                        <div class="node" data-type="if" data-action="no-enemy">敵がいない</div>
+                    </div>
+                    <div class="node-category">
+                        <h4>DO (実行)</h4>
+                        <div class="node" data-type="do" data-action="split">分裂する</div>
+                        <div class="node" data-type="do" data-action="explode">爆発する</div>
+                        <div class="node" data-type="do" data-action="bounce">跳ね返る</div>
+                        <div class="node" data-type="do" data-action="speed-up">速くなる</div>
+                        <div class="node" data-type="do" data-action="destroy">消える</div>
+                    </div>
+                </div>
+                <div id="rpa-slots">
+                    <h4>RPA Program</h4>
+                    <div class="slot" data-slot="0">スロット 1</div>
+                    <div class="slot" data-slot="1">スロット 2</div>
+                    <div class="slot" data-slot="2">スロット 3</div>
+                </div>
+                <button id="clear-program">プログラムをクリア</button>
+                <button id="test-fire">テスト発射</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="hud">
+        <div id="score">Score: 0</div>
+        <div id="stage">Stage: 1</div>
+    </div>
+
+    <script src="js/rpa.js"></script>
+    <script src="js/bullet.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
