@@ -110,7 +110,7 @@ class RPAProgram {
         const program = this.slots[slotIndex];
         
         if (program.length === 0) {
-            slotElement.innerHTML = `スロット ${slotIndex + 1}`;
+            slotElement.innerHTML = '<span class="slot-placeholder">ノードをここにドラッグ</span>';
             slotElement.classList.remove('filled');
             return;
         }
@@ -167,14 +167,134 @@ class RPAProgram {
     getAllPrograms() {
         return this.slots;
     }
+
+    // Load example program
+    loadExample(exampleName) {
+        const examples = {
+            'timer-bomb': [
+                { type: 'when', action: 'timer-2' },
+                { type: 'do', action: 'explode' }
+            ],
+            'bounce-bullet': [
+                { type: 'when', action: 'wall-contact' },
+                { type: 'do', action: 'bounce' }
+            ],
+            'smart-split': [
+                { type: 'when', action: 'timer-1' },
+                { type: 'if', action: 'enemy-many' },
+                { type: 'do', action: 'split' }
+            ]
+        };
+
+        const example = examples[exampleName];
+        if (example) {
+            // Find empty slot or use slot 0
+            let targetSlot = 0;
+            for (let i = 0; i < this.slots.length; i++) {
+                if (this.slots[i].length === 0) {
+                    targetSlot = i;
+                    break;
+                }
+            }
+
+            // Clear the target slot and load example
+            this.clearSlot(targetSlot);
+            example.forEach(nodeData => {
+                const node = new RPANode(nodeData.type, nodeData.action);
+                this.addNode(targetSlot, node);
+            });
+
+            console.log(`Loaded example "${exampleName}" into slot ${targetSlot + 1}`);
+        }
+    }
 }
 
 // Global RPA program instance
 const rpaProgram = new RPAProgram();
 
+// Modal management
+class ModalManager {
+    constructor() {
+        this.modal = null;
+        this.isOpen = false;
+    }
+
+    init() {
+        this.modal = document.getElementById('rpa-modal');
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+        // Open modal button
+        const openButton = document.getElementById('open-rpa-editor');
+        if (openButton) {
+            openButton.addEventListener('click', () => this.open());
+        }
+
+        // Close modal buttons
+        const closeButton = document.getElementById('close-rpa-editor');
+        if (closeButton) {
+            closeButton.addEventListener('click', () => this.close());
+        }
+
+        const saveAndCloseButton = document.getElementById('save-and-close');
+        if (saveAndCloseButton) {
+            saveAndCloseButton.addEventListener('click', () => this.close());
+        }
+
+        // Close on outside click
+        if (this.modal) {
+            this.modal.addEventListener('click', (e) => {
+                if (e.target === this.modal) {
+                    this.close();
+                }
+            });
+        }
+
+        // Close on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.isOpen) {
+                this.close();
+            }
+        });
+    }
+
+    open() {
+        if (this.modal) {
+            this.modal.style.display = 'block';
+            this.isOpen = true;
+            document.body.style.overflow = 'hidden';
+            
+            // Refresh slot displays when opening
+            rpaProgram.updateAllSlots();
+            
+            console.log('RPA Editor opened');
+        }
+    }
+
+    close() {
+        if (this.modal) {
+            this.modal.style.display = 'none';
+            this.isOpen = false;
+            document.body.style.overflow = 'auto';
+            
+            console.log('RPA Editor closed');
+        }
+    }
+
+    isModalOpen() {
+        return this.isOpen;
+    }
+}
+
+// Global modal manager
+const modalManager = new ModalManager();
+
 // Initialize RPA UI
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing RPA UI...');
     initializeRPAUI();
+    modalManager.init();
 });
 
 function initializeRPAUI() {
@@ -194,14 +314,37 @@ function initializeRPAUI() {
     });
 
     // Add button functionality
-    document.getElementById('clear-program').addEventListener('click', () => {
-        rpaProgram.clearAll();
-        console.log('All programs cleared');
+    const clearButton = document.getElementById('clear-program');
+    if (clearButton) {
+        clearButton.addEventListener('click', () => {
+            rpaProgram.clearAll();
+            console.log('All programs cleared');
+        });
+    }
+
+    const testButton = document.getElementById('test-fire');
+    if (testButton) {
+        testButton.addEventListener('click', () => {
+            testFireBullet();
+        });
+    }
+
+    // Add example card functionality
+    const exampleCards = document.querySelectorAll('.example-card');
+    exampleCards.forEach(card => {
+        card.addEventListener('click', () => {
+            const exampleName = card.getAttribute('data-example');
+            rpaProgram.loadExample(exampleName);
+            
+            // Visual feedback
+            card.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                card.style.transform = '';
+            }, 150);
+        });
     });
 
-    document.getElementById('test-fire').addEventListener('click', () => {
-        testFireBullet();
-    });
+    console.log('RPA UI initialized successfully');
 }
 
 function handleDragStart(e) {
@@ -260,9 +403,14 @@ function testFireBullet() {
         if (validation.valid) {
             console.log(`Testing program in slot ${i + 1}:`, rpaProgram.getProgram(i));
             
-            // This will be connected to the game engine later
+            // This will be connected to the game engine
             if (window.game && window.game.testFire) {
                 window.game.testFire(rpaProgram.getProgram(i));
+                
+                // Close modal if test firing from modal
+                if (modalManager.isModalOpen()) {
+                    modalManager.close();
+                }
             } else {
                 console.log('Game engine not ready, simulating bullet behavior...');
                 simulateBulletBehavior(rpaProgram.getProgram(i));
@@ -272,7 +420,10 @@ function testFireBullet() {
     }
     
     console.log('No valid programs found!');
-    alert('有効なプログラムがありません。WHEN ノードと DO ノードを正しい順序で配置してください。');
+    
+    // Show user-friendly message
+    const message = 'プログラムが見つかりません！\n\n例を試すか、新しいプログラムを作成してください：\n1. WHENノード（いつ）\n2. DOノード（実行）\nの順でドラッグしてください。';
+    alert(message);
 }
 
 function simulateBulletBehavior(program) {
@@ -293,3 +444,7 @@ function simulateBulletBehavior(program) {
         }
     });
 }
+
+// Export for global access
+window.rpaProgram = rpaProgram;
+window.modalManager = modalManager;
