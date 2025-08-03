@@ -18,7 +18,6 @@ class GameScene extends Phaser.Scene {
     }
 
     preload() {
-        // Create simple colored rectangles as sprites
         this.createSprites();
     }
 
@@ -94,25 +93,61 @@ class GameScene extends Phaser.Scene {
         // Connect to global game reference for RPA testing
         window.game = this;
 
-        // Add visual feedback that the game is running
-        this.add.text(gameWidth / 2, 50, 'Bullet Programming Shooter', {
-            fontSize: '24px',
-            fill: '#ffffff'
+        // Add game title and instructions - positioned for full screen
+        this.add.text(gameWidth / 2, 60, 'Bullet Programming Shooter', {
+            fontSize: '32px',
+            fill: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 2
         }).setOrigin(0.5);
 
-        this.add.text(gameWidth / 2, 80, 'WASD: Move | Space: Fire | Drag nodes to slots →', {
-            fontSize: '14px',
-            fill: '#cccccc'
+        this.add.text(gameWidth / 2, 100, 'WASD: Move | Space: Fire | 🔧 RPA編集: Program bullets', {
+            fontSize: '16px',
+            fill: '#cccccc',
+            stroke: '#000000',
+            strokeThickness: 1
         }).setOrigin(0.5);
+
+        // Add background stars for visual appeal
+        this.createStarField();
 
         console.log('Game initialized successfully!');
     }
 
-    update(time, delta) {
-        // Player movement
-        this.handlePlayerMovement();
+    createStarField() {
+        const gameWidth = this.sys.game.config.width;
+        const gameHeight = this.sys.game.config.height;
+        
+        // Create random stars
+        for (let i = 0; i < 100; i++) {
+            const x = Phaser.Math.Between(0, gameWidth);
+            const y = Phaser.Math.Between(0, gameHeight);
+            const star = this.add.circle(x, y, 1, 0xffffff, 0.3 + Math.random() * 0.7);
+            
+            // Add twinkling effect
+            this.tweens.add({
+                targets: star,
+                alpha: 0.1,
+                duration: 2000 + Math.random() * 3000,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+        }
+    }
 
-        // Enemy spawning
+    update(time, delta) {
+        // Only handle input if modal is not open
+        if (!window.modalManager || !window.modalManager.isModalOpen()) {
+            this.handlePlayerMovement();
+            
+            // Test firing with space key
+            if (Phaser.Input.Keyboard.JustDown(this.wasd.SPACE)) {
+                this.testFire();
+            }
+        }
+
+        // Always update game logic
         this.handleEnemySpawning(time);
 
         // Update bullets
@@ -121,11 +156,6 @@ class GameScene extends Phaser.Scene {
                 bullet.update();
             }
         });
-
-        // Test firing with space key
-        if (Phaser.Input.Keyboard.JustDown(this.wasd.SPACE)) {
-            this.testFire();
-        }
     }
 
     handlePlayerMovement() {
@@ -156,8 +186,11 @@ class GameScene extends Phaser.Scene {
     }
 
     spawnEnemy() {
-        const x = Phaser.Math.Between(this.sys.game.config.width + 20, this.sys.game.config.width + 100);
-        const y = Phaser.Math.Between(50, this.sys.game.config.height - 50);
+        const gameWidth = this.sys.game.config.width;
+        const gameHeight = this.sys.game.config.height;
+        
+        const x = Phaser.Math.Between(gameWidth + 20, gameWidth + 100);
+        const y = Phaser.Math.Between(50, gameHeight - 50);
         
         const enemy = new Enemy(this, x, y);
         this.enemies.add(enemy);
@@ -175,10 +208,10 @@ class GameScene extends Phaser.Scene {
     testFire(program = null) {
         if (!program) {
             // Find the first valid program
-            for (let i = 0; i < rpaProgram.slots.length; i++) {
-                const validation = rpaProgram.validateProgram(i);
+            for (let i = 0; i < window.rpaProgram.slots.length; i++) {
+                const validation = window.rpaProgram.validateProgram(i);
                 if (validation.valid) {
-                    program = rpaProgram.getProgram(i);
+                    program = window.rpaProgram.getProgram(i);
                     break;
                 }
             }
@@ -204,7 +237,12 @@ class GameScene extends Phaser.Scene {
         );
 
         this.bullets.add(bullet);
-        console.log('Fired bullet with program:', program.map(node => node.toString()).join(' → '));
+        console.log('Fired bullet with program:', program.map(node => 
+            typeof node.toString === 'function' ? node.toString() : node.action
+        ).join(' → '));
+
+        // Visual feedback for firing
+        this.cameras.main.shake(100, 0.005);
     }
 
     bulletHitsEnemy(bullet, enemy) {
@@ -229,6 +267,25 @@ class GameScene extends Phaser.Scene {
     addScore(points) {
         this.score += points;
         this.updateHUD();
+        
+        // Visual feedback for scoring
+        const gameWidth = this.sys.game.config.width;
+        const scoreText = this.add.text(gameWidth / 2, 150, `+${points}`, {
+            fontSize: '24px',
+            fill: '#4CAF50',
+            stroke: '#000000',
+            strokeThickness: 2
+        }).setOrigin(0.5);
+        
+        // Animate score popup
+        this.tweens.add({
+            targets: scoreText,
+            y: 120,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Power2',
+            onComplete: () => scoreText.destroy()
+        });
     }
 
     updateHUD() {
@@ -280,6 +337,18 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         
         if (this.health <= 0) {
             this.scene.addScore(10);
+            
+            // Death effect
+            const explosion = this.scene.add.circle(this.x, this.y, 20, 0xff6600, 0.7);
+            this.scene.tweens.add({
+                targets: explosion,
+                scaleX: 2,
+                scaleY: 2,
+                alpha: 0,
+                duration: 300,
+                onComplete: () => explosion.destroy()
+            });
+            
             this.destroy();
         }
     }
@@ -299,17 +368,17 @@ function initializeGame() {
     if (typeof Phaser === 'undefined') {
         console.error('Phaser.js not loaded!');
         document.getElementById('game-canvas').innerHTML = 
-            '<div style="color: white; padding: 20px;">Error: Phaser.js not loaded. Please check your internet connection.</div>';
+            '<div style="color: white; padding: 20px; text-align: center;">Error: Phaser.js not loaded.<br>Please check your internet connection and refresh.</div>';
         return;
     }
 
-    // Game configuration
+    // Game configuration - Full screen
     const gameConfig = {
         type: Phaser.AUTO,
-        width: Math.max(800, window.innerWidth - 350), // Account for UI panel, minimum 800px
-        height: Math.max(600, window.innerHeight),     // Minimum 600px
+        width: window.innerWidth,
+        height: window.innerHeight,
         parent: 'game-canvas',
-        backgroundColor: '#000000',
+        backgroundColor: '#000011',
         physics: {
             default: 'arcade',
             arcade: {
@@ -317,26 +386,28 @@ function initializeGame() {
                 debug: false
             }
         },
-        scene: GameScene
+        scene: GameScene,
+        scale: {
+            mode: Phaser.Scale.RESIZE,
+            autoCenter: Phaser.Scale.CENTER_BOTH
+        }
     };
 
     try {
         // Initialize the game
         const game = new Phaser.Game(gameConfig);
         
-        // Handle window resize
+        // Handle window resize for full screen experience
         window.addEventListener('resize', () => {
-            const newWidth = Math.max(800, window.innerWidth - 350);
-            const newHeight = Math.max(600, window.innerHeight);
-            game.scale.resize(newWidth, newHeight);
+            game.scale.resize(window.innerWidth, window.innerHeight);
         });
         
-        console.log('Game created successfully');
+        console.log('Game created successfully with full screen');
         return game;
     } catch (error) {
         console.error('Failed to initialize game:', error);
         document.getElementById('game-canvas').innerHTML = 
-            '<div style="color: white; padding: 20px;">Error initializing game: ' + error.message + '</div>';
+            '<div style="color: white; padding: 20px; text-align: center;">Error initializing game: ' + error.message + '<br>Please refresh the page.</div>';
     }
 }
 
@@ -359,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 clearInterval(checkPhaser);
                 console.error('Phaser failed to load after 5 seconds');
                 document.getElementById('game-canvas').innerHTML = 
-                    '<div style="color: white; padding: 20px;">Failed to load game engine. Please refresh the page.</div>';
+                    '<div style="color: white; padding: 20px; text-align: center;">Failed to load game engine.<br>Please check your internet connection and refresh the page.</div>';
             }
         }, 100);
     }
