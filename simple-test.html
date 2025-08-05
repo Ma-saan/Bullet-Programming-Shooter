@@ -31,7 +31,8 @@
 <body>
     <div id="game-container"></div>
     <div id="info">
-        <div>WASD: Move | Space: Shoot</div>
+        <div>A/D: 左右移動 | W/S: 上下移動</div>
+        <div>Space: 上向きに発射</div>
         <div>Score: <span id="score">0</span></div>
     </div>
 
@@ -54,33 +55,34 @@
             }
 
             createSprites() {
-                // Player (blue triangle pointing up)
+                // Player (blue triangle pointing UP)
                 const playerGraphics = this.add.graphics();
                 playerGraphics.fillStyle(0x0088ff);
-                playerGraphics.fillTriangle(10, 0, 0, 20, 20, 20);
-                playerGraphics.generateTexture('player', 20, 20);
+                // 上向きの三角形: 頂点が上
+                playerGraphics.fillTriangle(15, 5, 5, 25, 25, 25);
+                playerGraphics.generateTexture('player', 30, 30);
                 playerGraphics.destroy();
 
                 // Bullet (bright yellow circle)
                 const bulletGraphics = this.add.graphics();
                 bulletGraphics.fillStyle(0xffff00);
-                bulletGraphics.fillCircle(3, 3, 3);
-                bulletGraphics.generateTexture('bullet', 6, 6);
+                bulletGraphics.fillCircle(4, 4, 4);
+                bulletGraphics.generateTexture('bullet', 8, 8);
                 bulletGraphics.destroy();
 
-                // Enemy (red diamond)
+                // Enemy (red triangle pointing DOWN)
                 const enemyGraphics = this.add.graphics();
                 enemyGraphics.fillStyle(0xff4444);
-                enemyGraphics.fillTriangle(10, 0, 0, 10, 20, 10);
-                enemyGraphics.fillTriangle(10, 20, 0, 10, 20, 10);
-                enemyGraphics.generateTexture('enemy', 20, 20);
+                // 下向きの三角形: 頂点が下
+                enemyGraphics.fillTriangle(15, 25, 5, 5, 25, 5);
+                enemyGraphics.generateTexture('enemy', 30, 30);
                 enemyGraphics.destroy();
 
                 console.log('Vertical shooter sprites created');
             }
 
             create() {
-                // Create player at bottom center
+                // プレイヤーを画面下部の中央に配置
                 this.player = this.physics.add.sprite(400, 550, 'player');
                 this.player.setCollideWorldBounds(true);
 
@@ -97,39 +99,35 @@
                 // Collisions
                 this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this);
 
-                // Spawn enemies periodically
+                // 敵を定期的に上から出現させる
                 this.time.addEvent({
-                    delay: 1500, // Spawn every 1.5 seconds
+                    delay: 2000, // 2秒ごと
                     callback: this.spawnEnemy,
                     callbackScope: this,
                     loop: true
                 });
 
-                // Spawn initial enemies
-                for (let i = 0; i < 2; i++) {
-                    this.time.delayedCall(i * 500, () => {
-                        this.spawnEnemy();
-                    });
-                }
+                // 初期敵をスポーン
+                this.spawnEnemy();
 
                 // Add starfield background
                 this.createStars();
 
-                console.log('Vertical shooter game created');
+                console.log('Vertical shooter game created - Player at bottom, enemies from top');
             }
 
             createStars() {
-                // Create scrolling stars background
+                // 流れる星空背景を作成
                 for (let i = 0; i < 50; i++) {
                     const x = Phaser.Math.Between(0, 800);
                     const y = Phaser.Math.Between(0, 600);
-                    const star = this.add.circle(x, y, 1, 0xffffff, 0.5 + Math.random() * 0.5);
+                    const star = this.add.circle(x, y, 1, 0xffffff, 0.3 + Math.random() * 0.5);
                     
-                    // Make stars scroll down slowly
+                    // 星を下向きにゆっくり流す
                     this.physics.add.existing(star);
-                    star.body.setVelocityY(20 + Math.random() * 30);
+                    star.body.setVelocityY(30 + Math.random() * 50);
                     
-                    // Respawn stars at top when they go off bottom
+                    // 画面下に出たら上に戻す
                     this.time.addEvent({
                         delay: 100,
                         callback: () => {
@@ -144,35 +142,38 @@
             }
 
             update() {
-                // Player movement (left-right and up-down)
+                // プレイヤー移動（主に左右、少し上下）
                 this.player.setVelocity(0);
 
+                // 左右移動
                 if (this.wasd.A.isDown) {
-                    this.player.setVelocityX(-250);
+                    this.player.setVelocityX(-300);
                 }
                 if (this.wasd.D.isDown) {
-                    this.player.setVelocityX(250);
+                    this.player.setVelocityX(300);
                 }
-                if (this.wasd.W.isDown) {
+                
+                // 上下移動（制限付き）
+                if (this.wasd.W.isDown && this.player.y > 100) {
                     this.player.setVelocityY(-200);
                 }
-                if (this.wasd.S.isDown) {
+                if (this.wasd.S.isDown && this.player.y < 570) {
                     this.player.setVelocityY(200);
                 }
 
-                // Shooting
+                // 弾丸発射
                 if (Phaser.Input.Keyboard.JustDown(this.wasd.SPACE)) {
                     this.shoot();
                 }
 
-                // Clean up bullets that are off screen (went off top)
+                // 画面上部に出た弾丸を削除
                 this.bullets.children.entries.forEach(bullet => {
                     if (bullet.y < -10) {
                         bullet.destroy();
                     }
                 });
 
-                // Clean up enemies that went off bottom
+                // 画面下部に出た敵を削除
                 this.enemies.children.entries.forEach(enemy => {
                     if (enemy.y > 650) {
                         enemy.destroy();
@@ -181,74 +182,74 @@
             }
 
             shoot() {
-                // Create bullet at player position (above player)
+                // プレイヤーの上から弾丸を発射
                 const bullet = this.physics.add.sprite(
                     this.player.x, 
-                    this.player.y - 15, 
+                    this.player.y - 20, 
                     'bullet'
                 );
                 
-                // Add to bullets group
+                // 弾丸グループに追加
                 this.bullets.add(bullet);
                 
-                // Set bullet velocity (move up)
-                bullet.setVelocityY(-500);
+                // 弾丸を上向きに発射
+                bullet.setVelocityY(-600);
                 
-                console.log('Bullet fired upward at:', bullet.x, bullet.y);
+                console.log('弾丸を上向きに発射:', bullet.x, bullet.y);
             }
 
             spawnEnemy() {
-                // Spawn enemy at random X position at top of screen
+                // 画面上部のランダムな位置に敵を出現
                 const x = Phaser.Math.Between(50, 750);
-                const enemy = this.physics.add.sprite(x, -20, 'enemy');
+                const enemy = this.physics.add.sprite(x, -30, 'enemy');
                 
                 this.enemies.add(enemy);
                 
-                // Move enemy downward
-                enemy.setVelocityY(Phaser.Math.Between(80, 150));
+                // 敵を下向きに移動
+                enemy.setVelocityY(Phaser.Math.Between(100, 200));
                 
-                // Some enemies move left/right slightly
-                if (Math.random() < 0.3) {
-                    enemy.setVelocityX(Phaser.Math.Between(-50, 50));
+                // 一部の敵は左右にも移動
+                if (Math.random() < 0.4) {
+                    enemy.setVelocityX(Phaser.Math.Between(-80, 80));
                 }
                 
-                console.log('Enemy spawned at:', x, -20);
+                console.log('敵が上部から出現:', x, -30);
             }
 
             hitEnemy(bullet, enemy) {
-                // Create small explosion effect
-                const explosion = this.add.circle(enemy.x, enemy.y, 15, 0xff6600, 0.8);
+                // 爆発エフェクト
+                const explosion = this.add.circle(enemy.x, enemy.y, 20, 0xff6600, 0.8);
                 this.tweens.add({
                     targets: explosion,
-                    scaleX: 2,
-                    scaleY: 2,
+                    scaleX: 2.5,
+                    scaleY: 2.5,
                     alpha: 0,
-                    duration: 200,
+                    duration: 300,
                     onComplete: () => explosion.destroy()
                 });
 
-                // Destroy both bullet and enemy
+                // 弾丸と敵を破壊
                 bullet.destroy();
                 enemy.destroy();
                 
-                // Add score
+                // スコア追加
                 this.score += 10;
                 document.getElementById('score').textContent = this.score;
                 
-                // Screen shake for impact
-                this.cameras.main.shake(100, 0.01);
+                // 画面シェイク
+                this.cameras.main.shake(150, 0.02);
                 
-                console.log('Enemy destroyed! Score:', this.score);
+                console.log('敵を撃破! スコア:', this.score);
             }
         }
 
-        // Game configuration
+        // ゲーム設定
         const config = {
             type: Phaser.AUTO,
             width: 800,
             height: 600,
             parent: 'game-container',
-            backgroundColor: '#001122',
+            backgroundColor: '#001133',
             physics: {
                 default: 'arcade',
                 arcade: {
@@ -259,10 +260,10 @@
             scene: GameScene
         };
 
-        // Start the game
+        // ゲーム開始
         const game = new Phaser.Game(config);
         
-        console.log('Vertical shooting game initialized');
+        console.log('縦シューティングゲーム開始！');
     </script>
 </body>
 </html>
