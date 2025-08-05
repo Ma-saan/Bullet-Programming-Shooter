@@ -20,15 +20,22 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         this.maxBounces = 3;
         this.isActive = true;
         
-        // Add to scene and physics
+        // Add to scene first
         scene.add.existing(this);
+        
+        // Then add physics - this is crucial for body to exist
         scene.physics.add.existing(this);
         
-        // Set up physics body
-        this.body.setCollideWorldBounds(true);
-        this.body.onWorldBounds = true;
+        // Ensure body exists before setting properties
+        if (this.body) {
+            this.body.setCollideWorldBounds(true);
+            this.body.onWorldBounds = true;
+        } else {
+            console.error('Bullet body not created!');
+        }
         
         console.log('Bullet created at:', x, y, 'with program:', program.length, 'nodes');
+        console.log('Bullet body exists:', !!this.body);
         
         // Start program execution
         this.initializeProgram();
@@ -126,7 +133,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         let hasValidWhen = false;
         let hasValidIf = true; // Default to true if no IF node
         
-        for (let i = doIndex - 1; i >= 0; i--) {
+        for let i = doIndex - 1; i >= 0; i--) {
             const node = this.program[i];
             
             if (node.type === 'when') {
@@ -197,7 +204,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     }
 
     split() {
-        if (!this.isActive) return;
+        if (!this.isActive || !this.body) return;
         
         // Create two new bullets
         const currentVelocity = { x: this.body.velocity.x, y: this.body.velocity.y };
@@ -209,8 +216,15 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         const bullet1 = new Bullet(this.scene, this.x, this.y, this.program);
         const bullet2 = new Bullet(this.scene, this.x, this.y, this.program);
         
-        bullet1.setVelocity(Math.cos(angle1) * this.speed, Math.sin(angle1) * this.speed);
-        bullet2.setVelocity(Math.cos(angle2) * this.speed, Math.sin(angle2) * this.speed);
+        // Wait for bodies to be created, then set velocity
+        this.scene.time.delayedCall(10, () => {
+            if (bullet1.body) {
+                bullet1.setVelocity(Math.cos(angle1) * this.speed, Math.sin(angle1) * this.speed);
+            }
+            if (bullet2.body) {
+                bullet2.setVelocity(Math.cos(angle2) * this.speed, Math.sin(angle2) * this.speed);
+            }
+        });
         
         // Add to scene's bullet group
         if (this.scene.bullets) {
@@ -255,12 +269,16 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     }
 
     enableBounce() {
-        this.body.setBounce(1, 1);
-        this.maxBounces = 5;
-        console.log('Bullet bounce enabled');
+        if (this.body) {
+            this.body.setBounce(1, 1);
+            this.maxBounces = 5;
+            console.log('Bullet bounce enabled');
+        }
     }
 
     speedUp() {
+        if (!this.body) return;
+        
         this.speed *= 1.5;
         const currentAngle = Phaser.Math.Angle.Between(0, 0, this.body.velocity.x, this.body.velocity.y);
         this.setVelocity(Math.cos(currentAngle) * this.speed, Math.sin(currentAngle) * this.speed);
@@ -337,14 +355,21 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
 function createProgrammedBullet(scene, x, y, direction, program) {
     const bullet = new Bullet(scene, x, y, program);
     
-    // Set initial velocity based on direction
-    const speed = bullet.speed;
-    const velocityX = Math.cos(direction) * speed;
-    const velocityY = Math.sin(direction) * speed;
+    // Wait a frame to ensure physics body is created
+    scene.time.delayedCall(10, () => {
+        if (bullet.body) {
+            const speed = bullet.speed;
+            const velocityX = Math.cos(direction) * speed;
+            const velocityY = Math.sin(direction) * speed;
+            
+            bullet.setVelocity(velocityX, velocityY);
+            console.log('Set bullet velocity:', velocityX, velocityY);
+        } else {
+            console.error('Bullet body still not available after delay');
+        }
+    });
     
-    bullet.setVelocity(velocityX, velocityY);
-    
-    console.log('Created bullet with velocity:', velocityX, velocityY);
+    console.log('Created bullet, body exists:', !!bullet.body);
     
     return bullet;
 }
