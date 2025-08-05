@@ -105,7 +105,10 @@ class RPAProgram {
 
     updateSlotDisplay(slotIndex) {
         const slotElement = document.querySelector(`.slot[data-slot="${slotIndex}"]`);
-        if (!slotElement) return;
+        if (!slotElement) {
+            console.warn(`Slot element not found for index ${slotIndex}`);
+            return;
+        }
 
         const program = this.slots[slotIndex];
         
@@ -361,28 +364,49 @@ function handleDragStart(e) {
 
 function handleDragOver(e) {
     e.preventDefault();
-    e.currentTarget.classList.add('drag-over');
+    if (e.currentTarget) {
+        e.currentTarget.classList.add('drag-over');
+    }
 }
 
 function handleDragLeave(e) {
-    e.currentTarget.classList.remove('drag-over');
+    if (e.currentTarget) {
+        e.currentTarget.classList.remove('drag-over');
+    }
 }
 
 function handleDrop(e) {
     e.preventDefault();
+    
+    // Safety check for currentTarget
+    if (!e.currentTarget) {
+        console.warn('Drop event currentTarget is null');
+        return;
+    }
+    
     e.currentTarget.classList.remove('drag-over');
     
     try {
         const nodeData = JSON.parse(e.dataTransfer.getData('text/plain'));
         const slotIndex = parseInt(e.currentTarget.getAttribute('data-slot'));
         
+        if (isNaN(slotIndex)) {
+            console.warn('Invalid slot index');
+            return;
+        }
+        
         const node = new RPANode(nodeData.type, nodeData.action);
         
         if (rpaProgram.addNode(slotIndex, node)) {
-            e.currentTarget.classList.add('node-placed');
-            setTimeout(() => {
-                e.currentTarget.classList.remove('node-placed');
-            }, 300);
+            // Visual feedback - check if element still exists
+            if (e.currentTarget && e.currentTarget.classList) {
+                e.currentTarget.classList.add('node-placed');
+                setTimeout(() => {
+                    if (e.currentTarget && e.currentTarget.classList) {
+                        e.currentTarget.classList.remove('node-placed');
+                    }
+                }, 300);
+            }
             
             console.log(`Added node ${node.toString()} to slot ${slotIndex + 1}`);
         }
