@@ -133,7 +133,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         let hasValidWhen = false;
         let hasValidIf = true; // Default to true if no IF node
         
-        for let i = doIndex - 1; i >= 0; i--) {
+        for (let i = doIndex - 1; i >= 0; i--) {
             const node = this.program[i];
             
             if (node.type === 'when') {
