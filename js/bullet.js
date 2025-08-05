@@ -20,13 +20,15 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         this.maxBounces = 3;
         this.isActive = true;
         
-        // Add to scene
+        // Add to scene and physics
         scene.add.existing(this);
         scene.physics.add.existing(this);
         
         // Set up physics body
         this.body.setCollideWorldBounds(true);
         this.body.onWorldBounds = true;
+        
+        console.log('Bullet created at:', x, y, 'with program:', program.length, 'nodes');
         
         // Start program execution
         this.initializeProgram();
@@ -139,8 +141,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     }
 
     evaluateCondition(ifNode) {
-        const enemies = this.scene.enemies || [];
-        const playerPos = this.scene.player ? { x: this.scene.player.x, y: this.scene.player.y } : { x: 400, y: 300 };
+        const enemies = this.scene.enemies ? this.scene.enemies.children.entries : [];
         
         switch (ifNode.action) {
             case 'enemy-near':
@@ -199,8 +200,11 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         if (!this.isActive) return;
         
         // Create two new bullets
-        const angle1 = Phaser.Math.Angle.Between(0, 0, this.body.velocity.x, this.body.velocity.y) - Math.PI / 6;
-        const angle2 = Phaser.Math.Angle.Between(0, 0, this.body.velocity.x, this.body.velocity.y) + Math.PI / 6;
+        const currentVelocity = { x: this.body.velocity.x, y: this.body.velocity.y };
+        const currentAngle = Phaser.Math.Angle.Between(0, 0, currentVelocity.x, currentVelocity.y);
+        
+        const angle1 = currentAngle - Math.PI / 6;
+        const angle2 = currentAngle + Math.PI / 6;
         
         const bullet1 = new Bullet(this.scene, this.x, this.y, this.program);
         const bullet2 = new Bullet(this.scene, this.x, this.y, this.program);
@@ -214,7 +218,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             this.scene.bullets.add(bullet2);
         }
         
-        // Destroy original bullet
+        console.log('Bullet split into two');
         this.destroy();
     }
 
@@ -222,34 +226,45 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         if (!this.isActive) return;
         
         // Create explosion effect
-        this.scene.add.circle(this.x, this.y, 50, 0xff6600, 0.7)
-            .setStrokeStyle(3, 0xff0000);
+        const explosion = this.scene.add.circle(this.x, this.y, 50, 0xff6600, 0.7);
+        explosion.setStrokeStyle(3, 0xff0000);
+        
+        this.scene.tweens.add({
+            targets: explosion,
+            scaleX: 2,
+            scaleY: 2,
+            alpha: 0,
+            duration: 500,
+            onComplete: () => explosion.destroy()
+        });
         
         // Damage nearby enemies
-        if (this.scene.enemies) {
-            this.scene.enemies.forEach(enemy => {
-                const distance = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
-                if (distance < 80) {
-                    // Damage enemy
-                    if (enemy.takeDamage) {
-                        enemy.takeDamage(this.damage * 2);
-                    }
+        const enemies = this.scene.enemies ? this.scene.enemies.children.entries : [];
+        enemies.forEach(enemy => {
+            const distance = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
+            if (distance < 80) {
+                // Damage enemy
+                if (enemy.takeDamage) {
+                    enemy.takeDamage(this.damage * 2);
                 }
-            });
-        }
+            }
+        });
         
+        console.log('Bullet exploded');
         this.destroy();
     }
 
     enableBounce() {
         this.body.setBounce(1, 1);
         this.maxBounces = 5;
+        console.log('Bullet bounce enabled');
     }
 
     speedUp() {
         this.speed *= 1.5;
         const currentAngle = Phaser.Math.Angle.Between(0, 0, this.body.velocity.x, this.body.velocity.y);
         this.setVelocity(Math.cos(currentAngle) * this.speed, Math.sin(currentAngle) * this.speed);
+        console.log('Bullet speed increased to', this.speed);
     }
 
     onWallCollision() {
@@ -288,8 +303,11 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         if (!this.isActive) return;
         
         // Check if bullet is out of bounds
-        if (this.x < -50 || this.x > this.scene.sys.game.config.width + 50 ||
-            this.y < -50 || this.y > this.scene.sys.game.config.height + 50) {
+        const gameWidth = this.scene.sys.game.config.width;
+        const gameHeight = this.scene.sys.game.config.height;
+        
+        if (this.x < -50 || this.x > gameWidth + 50 ||
+            this.y < -50 || this.y > gameHeight + 50) {
             this.destroy();
             return;
         }
@@ -321,10 +339,12 @@ function createProgrammedBullet(scene, x, y, direction, program) {
     
     // Set initial velocity based on direction
     const speed = bullet.speed;
-    bullet.setVelocity(
-        Math.cos(direction) * speed,
-        Math.sin(direction) * speed
-    );
+    const velocityX = Math.cos(direction) * speed;
+    const velocityY = Math.sin(direction) * speed;
+    
+    bullet.setVelocity(velocityX, velocityY);
+    
+    console.log('Created bullet with velocity:', velocityX, velocityY);
     
     return bullet;
 }
