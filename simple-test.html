@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Shooting Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            border: 2px solid #333;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 14px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.70.0/phaser.min.js"></script>
+</head>
+<body>
+    <div id="game-container"></div>
+    <div id="info">
+        <div>WASD: Move</div>
+        <div>Space: Shoot</div>
+        <div>Score: <span id="score">0</span></div>
+    </div>
+
+    <script>
+        // Simple Game Scene
+        class GameScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'GameScene' });
+                this.player = null;
+                this.bullets = null;
+                this.enemies = null;
+                this.score = 0;
+                this.cursors = null;
+                this.wasd = null;
+            }
+
+            preload() {
+                // Create simple colored sprites
+                this.createSprites();
+            }
+
+            createSprites() {
+                // Player (blue square)
+                const playerGraphics = this.add.graphics();
+                playerGraphics.fillStyle(0x0088ff);
+                playerGraphics.fillRect(0, 0, 20, 20);
+                playerGraphics.generateTexture('player', 20, 20);
+                playerGraphics.destroy();
+
+                // Bullet (yellow circle)
+                const bulletGraphics = this.add.graphics();
+                bulletGraphics.fillStyle(0xffff00);
+                bulletGraphics.fillCircle(5, 5, 5);
+                bulletGraphics.generateTexture('bullet', 10, 10);
+                bulletGraphics.destroy();
+
+                // Enemy (red square)
+                const enemyGraphics = this.add.graphics();
+                enemyGraphics.fillStyle(0xff4444);
+                enemyGraphics.fillRect(0, 0, 20, 20);
+                enemyGraphics.generateTexture('enemy', 20, 20);
+                enemyGraphics.destroy();
+
+                console.log('Sprites created');
+            }
+
+            create() {
+                // Create player
+                this.player = this.physics.add.sprite(100, 300, 'player');
+                this.player.setCollideWorldBounds(true);
+
+                // Create bullet group
+                this.bullets = this.physics.add.group();
+
+                // Create enemy group
+                this.enemies = this.physics.add.group();
+
+                // Set up controls
+                this.cursors = this.input.keyboard.createCursorKeys();
+                this.wasd = this.input.keyboard.addKeys('W,S,A,D,SPACE');
+
+                // Collisions
+                this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this);
+
+                // Spawn enemies periodically
+                this.time.addEvent({
+                    delay: 2000,
+                    callback: this.spawnEnemy,
+                    callbackScope: this,
+                    loop: true
+                });
+
+                // Spawn initial enemies
+                for (let i = 0; i < 3; i++) {
+                    this.spawnEnemy();
+                }
+
+                console.log('Game created');
+            }
+
+            update() {
+                // Player movement
+                this.player.setVelocity(0);
+
+                if (this.wasd.A.isDown) {
+                    this.player.setVelocityX(-200);
+                }
+                if (this.wasd.D.isDown) {
+                    this.player.setVelocityX(200);
+                }
+                if (this.wasd.W.isDown) {
+                    this.player.setVelocityY(-200);
+                }
+                if (this.wasd.S.isDown) {
+                    this.player.setVelocityY(200);
+                }
+
+                // Shooting
+                if (Phaser.Input.Keyboard.JustDown(this.wasd.SPACE)) {
+                    this.shoot();
+                }
+
+                // Clean up bullets that are off screen
+                this.bullets.children.entries.forEach(bullet => {
+                    if (bullet.x > 850) {
+                        bullet.destroy();
+                    }
+                });
+            }
+
+            shoot() {
+                // Create bullet at player position
+                const bullet = this.physics.add.sprite(
+                    this.player.x + 25, 
+                    this.player.y, 
+                    'bullet'
+                );
+                
+                // Add to bullets group
+                this.bullets.add(bullet);
+                
+                // Set bullet velocity (move right)
+                bullet.setVelocityX(400);
+                
+                console.log('Bullet fired at:', bullet.x, bullet.y, 'velocity:', bullet.body.velocity.x);
+            }
+
+            spawnEnemy() {
+                const y = Phaser.Math.Between(50, 550);
+                const enemy = this.physics.add.sprite(800, y, 'enemy');
+                
+                this.enemies.add(enemy);
+                
+                // Move enemy left
+                enemy.setVelocityX(-100);
+                
+                // Remove enemy if it goes off screen
+                this.time.delayedCall(10000, () => {
+                    if (enemy.active) {
+                        enemy.destroy();
+                    }
+                });
+            }
+
+            hitEnemy(bullet, enemy) {
+                // Destroy both bullet and enemy
+                bullet.destroy();
+                enemy.destroy();
+                
+                // Add score
+                this.score += 10;
+                document.getElementById('score').textContent = this.score;
+                
+                console.log('Enemy hit! Score:', this.score);
+            }
+        }
+
+        // Game configuration
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            parent: 'game-container',
+            backgroundColor: '#001122',
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 0 },
+                    debug: false
+                }
+            },
+            scene: GameScene
+        };
+
+        // Start the game
+        const game = new Phaser.Game(config);
+        
+        console.log('Game initialized');
+    </script>
+</body>
+</html>
