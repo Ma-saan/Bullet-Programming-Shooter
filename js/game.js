@@ -56,15 +56,10 @@ class GameScene extends Phaser.Scene {
 
         // Initialize physics groups
         this.bullets = this.physics.add.group({
-            classType: Bullet,
-            maxSize: 50,
             runChildUpdate: true
         });
 
-        this.enemies = this.physics.add.group({
-            classType: Enemy,
-            maxSize: 20
-        });
+        this.enemies = this.physics.add.group();
 
         // Create player
         const gameWidth = this.sys.game.config.width;
@@ -150,9 +145,9 @@ class GameScene extends Phaser.Scene {
         // Always update game logic
         this.handleEnemySpawning(time);
 
-        // Update bullets
+        // Update bullets - manual update call for bullets
         this.bullets.children.entries.forEach(bullet => {
-            if (bullet.update) {
+            if (bullet.update && typeof bullet.update === 'function') {
                 bullet.update();
             }
         });
@@ -206,20 +201,23 @@ class GameScene extends Phaser.Scene {
     }
 
     testFire(program = null) {
-        if (!program) {
+        console.log('testFire called');
+        
+        if (!program && window.rpaProgram) {
             // Find the first valid program
             for (let i = 0; i < window.rpaProgram.slots.length; i++) {
                 const validation = window.rpaProgram.validateProgram(i);
                 if (validation.valid) {
                     program = window.rpaProgram.getProgram(i);
+                    console.log('Using program from slot', i + 1, ':', program);
                     break;
                 }
             }
         }
 
         if (!program || program.length === 0) {
-            console.log('No valid program to test! Creating default bullet...');
-            // Create a default bullet if no program exists
+            console.log('No valid program found, creating default bullet...');
+            // Create a default bullet that moves to the right
             program = [
                 { type: 'when', action: 'immediate', toString: () => '即座に' },
                 { type: 'do', action: 'destroy', toString: () => '消える' }
@@ -227,37 +225,54 @@ class GameScene extends Phaser.Scene {
         }
 
         // Create and fire bullet
-        const direction = 0; // Fire to the right
+        const direction = 0; // Fire to the right (0 radians)
+        const startX = this.player.x + 20;
+        const startY = this.player.y;
+        
+        console.log('Creating bullet at:', startX, startY, 'direction:', direction);
+        
         const bullet = createProgrammedBullet(
             this,
-            this.player.x + 20,
-            this.player.y,
+            startX,
+            startY,
             direction,
             program
         );
 
+        // Make sure the bullet is added to the bullets group
         this.bullets.add(bullet);
-        console.log('Fired bullet with program:', program.map(node => 
-            typeof node.toString === 'function' ? node.toString() : node.action
-        ).join(' → '));
+        
+        console.log('Bullet added to bullets group. Current bullet count:', this.bullets.children.entries.length);
+        console.log('Bullet velocity:', bullet.body.velocity.x, bullet.body.velocity.y);
 
         // Visual feedback for firing
         this.cameras.main.shake(100, 0.005);
+        
+        // Show program info
+        const programText = program.map(node => 
+            typeof node.toString === 'function' ? node.toString() : node.action
+        ).join(' → ');
+        console.log('Fired bullet with program:', programText);
     }
 
     bulletHitsEnemy(bullet, enemy) {
+        console.log('Bullet hit enemy');
         if (bullet.onEnemyCollision) {
             bullet.onEnemyCollision(enemy);
         } else {
             // Default behavior
             this.addScore(10);
-            bullet.destroy();
+            if (bullet.destroy) {
+                bullet.destroy();
+            }
         }
     }
 
     onWorldBounds(event) {
         const body = event.body;
         const gameObject = body.gameObject;
+        
+        console.log('World bounds collision:', gameObject.constructor.name);
         
         if (gameObject instanceof Bullet) {
             gameObject.onWallCollision();
@@ -310,6 +325,8 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         
         // Move towards player
         this.moveTowardsPlayer();
+        
+        console.log('Enemy created at:', x, y);
     }
 
     moveTowardsPlayer() {
@@ -328,6 +345,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     takeDamage(damage = 1) {
         this.health -= damage;
+        console.log('Enemy took damage:', damage, 'remaining health:', this.health);
         
         // Visual feedback
         this.setTint(0xff0000);
@@ -349,6 +367,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
                 onComplete: () => explosion.destroy()
             });
             
+            console.log('Enemy destroyed');
             this.destroy();
         }
     }
@@ -383,7 +402,7 @@ function initializeGame() {
             default: 'arcade',
             arcade: {
                 gravity: { y: 0 },
-                debug: false
+                debug: false // Set to true for debugging physics
             }
         },
         scene: GameScene,
