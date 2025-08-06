@@ -3,13 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bullet Programming Shooter</title>
+    <meta name="description" content="弾道プログラミングシューター - プレイヤーが弾丸の挙動をRPAでプログラミングして敵を倒すシューティングゲーム">
+    <meta name="keywords" content="シューティングゲーム,プログラミング,RPA,ゲーム開発,JavaScript,Phaser">
+    <title>Bullet Programming Shooter - 弾道プログラミングシューター</title>
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Open Graph meta tags for social sharing -->
+    <meta property="og:title" content="Bullet Programming Shooter">
+    <meta property="og:description" content="弾丸の挙動をプログラミングして敵を倒すユニークなシューティングゲーム">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://via.placeholder.com/1200x630/000011/ffffff?text=Bullet+Programming+Shooter">
+    <meta property="og:url" content="https://ma-saan.github.io/Bullet-Programming-Shooter/">
+    
+    <!-- Twitter Card meta tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Bullet Programming Shooter">
+    <meta name="twitter:description" content="弾丸の挙動をプログラミングして敵を倒すユニークなシューティングゲーム">
+    <meta name="twitter:image" content="https://via.placeholder.com/1200x630/000011/ffffff?text=Bullet+Programming+Shooter">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    
     <!-- Try multiple CDN sources for better reliability -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.70.0/phaser.min.js" 
             onerror="this.onerror=null; this.src='https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js'"></script>
+    
+    <!-- Google Analytics or other tracking can be added here -->
 </head>
 <body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" style="display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000011; z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; color: white;">
+        <div style="font-size: 32px; margin-bottom: 20px;">🚀</div>
+        <div style="font-size: 24px; margin-bottom: 10px;">Bullet Programming Shooter</div>
+        <div style="font-size: 16px; opacity: 0.8;">読み込み中...</div>
+        <div style="margin-top: 20px;">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+    
     <!-- Main Game Container (Full Screen) -->
     <div id="game-container">
         <div id="game-canvas"></div>
@@ -125,11 +156,42 @@
         </div>
     </div>
 
+    <!-- Info Panel (initially hidden) -->
+    <div id="info-panel" style="display: none; position: absolute; top: 120px; right: 10px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 5px; font-size: 14px; max-width: 300px;">
+        <h4>🎮 操作方法</h4>
+        <ul>
+            <li><strong>W/A/S/D:</strong> プレイヤー移動</li>
+            <li><strong>スペース:</strong> 弾丸発射</li>
+            <li><strong>🔧 RPA編集:</strong> プログラム作成</li>
+        </ul>
+        <button onclick="document.getElementById('info-panel').style.display='none'" style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; float: right;">閉じる</button>
+    </div>
+
+    <!-- Toggle Info Button -->
+    <button id="toggle-info" style="position: absolute; top: 120px; right: 10px; background: #4CAF50; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; z-index: 1000;">❓ヘルプ</button>
+
     <!-- Debug info for troubleshooting -->
-    <div id="debug-info" style="position: absolute; top: 120px; left: 10px; color: white; font-size: 12px; background: rgba(0,0,0,0.7); padding: 5px; border-radius: 3px;">
+    <div id="debug-info" style="position: absolute; top: 160px; left: 10px; color: white; font-size: 12px; background: rgba(0,0,0,0.7); padding: 5px; border-radius: 3px;">
         <div>Phaser loaded: <span id="phaser-status">checking...</span></div>
         <div>Game initialized: <span id="game-status">waiting...</span></div>
     </div>
+
+    <!-- CSS for loading spinner -->
+    <style>
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 
     <script>
         // Debug check for Phaser
@@ -138,6 +200,19 @@
         // Log any errors
         window.addEventListener('error', function(e) {
             console.error('Global error:', e.error);
+        });
+        
+        // Hide loading screen when game is ready
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                document.getElementById('loading-screen').style.display = 'none';
+            }, 1500);
+        });
+        
+        // Toggle info panel
+        document.getElementById('toggle-info').addEventListener('click', function() {
+            const infoPanel = document.getElementById('info-panel');
+            infoPanel.style.display = infoPanel.style.display === 'none' ? 'block' : 'none';
         });
     </script>
 
