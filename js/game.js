@@ -18,39 +18,30 @@ class GameScene extends Phaser.Scene {
     }
 
     preload() {
-        // Create assets directory if images are not available, create sprites programmatically
-        this.createSprites();
+        // Load actual PNG images from assets
+        console.log('Loading PNG sprites from assets...');
         
-        // Attempt to load external images if available
-        // You can replace these URLs with actual image paths when assets are uploaded
-        this.load.image('player-sprite', 'data:image/svg+xml;base64,' + btoa(`
-            <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
-                <rect width="16" height="16" fill="#00AA00"/>
-                <rect x="2" y="2" width="12" height="12" fill="#00FF00"/>
-                <rect x="6" y="0" width="4" height="4" fill="#00FF00"/>
-                <rect x="13" y="6" width="3" height="4" fill="#FFFF00"/>
-            </svg>
-        `));
+        // Load the actual uploaded PNG files
+        this.load.image('player-sprite', 'assets/images/Player.png');
+        this.load.image('enemy-sprite', 'assets/images/Enemy1.png');
+        this.load.image('bullet-sprite', 'assets/images/Ballet.png');
+        this.load.image('bullet-sprite2', 'assets/images/Ballet2.png'); // Alternative bullet sprite
         
-        this.load.image('enemy-sprite', 'data:image/svg+xml;base64,' + btoa(`
-            <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
-                <rect width="16" height="16" fill="#666666"/>
-                <rect x="2" y="2" width="12" height="12" fill="#888888"/>
-                <polygon points="0,8 8,4 8,12" fill="#AA0000"/>
-                <rect x="10" y="6" width="4" height="4" fill="#FF0000"/>
-            </svg>
-        `));
+        // Create fallback sprites in case images fail to load
+        this.createFallbackSprites();
         
-        this.load.image('bullet-sprite', 'data:image/svg+xml;base64,' + btoa(`
-            <svg width="8" height="8" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="4" cy="4" r="4" fill="#FFFF00"/>
-                <circle cx="4" cy="4" r="2" fill="#FFAA00"/>
-            </svg>
-        `));
+        // Handle load errors
+        this.load.on('loaderror', (file) => {
+            console.warn('Failed to load:', file.src);
+        });
+        
+        this.load.on('complete', () => {
+            console.log('All assets loaded successfully!');
+        });
     }
 
-    createSprites() {
-        // Player sprite (improved green tank-like design)
+    createFallbackSprites() {
+        // Player sprite (improved green tank-like design) - fallback
         const playerGraphics = this.add.graphics();
         playerGraphics.fillStyle(0x00AA00);
         playerGraphics.fillRect(0, 0, 16, 16);
@@ -61,10 +52,10 @@ class GameScene extends Phaser.Scene {
         // Muzzle flash area
         playerGraphics.fillStyle(0xFFFF00);
         playerGraphics.fillRect(13, 6, 3, 4);
-        playerGraphics.generateTexture('player', 16, 16);
+        playerGraphics.generateTexture('player-fallback', 16, 16);
         playerGraphics.destroy();
 
-        // Enemy sprite (improved gray aircraft-like design)
+        // Enemy sprite (improved gray aircraft-like design) - fallback
         const enemyGraphics = this.add.graphics();
         enemyGraphics.fillStyle(0x666666);
         enemyGraphics.fillRect(0, 0, 16, 16);
@@ -76,19 +67,19 @@ class GameScene extends Phaser.Scene {
         // Enemy engine/detail
         enemyGraphics.fillStyle(0xFF0000);
         enemyGraphics.fillRect(10, 6, 4, 4);
-        enemyGraphics.generateTexture('enemy', 16, 16);
+        enemyGraphics.generateTexture('enemy-fallback', 16, 16);
         enemyGraphics.destroy();
 
-        // Bullet sprite (improved glowing effect)
+        // Bullet sprite (improved glowing effect) - fallback
         const bulletGraphics = this.add.graphics();
         bulletGraphics.fillStyle(0xFFFF00);
         bulletGraphics.fillCircle(4, 4, 4);
         bulletGraphics.fillStyle(0xFFAA00);
         bulletGraphics.fillCircle(4, 4, 2);
-        bulletGraphics.generateTexture('bullet', 8, 8);
+        bulletGraphics.generateTexture('bullet-fallback', 8, 8);
         bulletGraphics.destroy();
 
-        console.log('Sprites created successfully');
+        console.log('Fallback sprites created successfully');
     }
 
     create() {
@@ -99,6 +90,23 @@ class GameScene extends Phaser.Scene {
             document.getElementById('game-status').textContent = 'YES';
         }
 
+        // Check which sprites are available and log them
+        const playerTexture = this.textures.exists('player-sprite') ? 'player-sprite' : 'player-fallback';
+        const enemyTexture = this.textures.exists('enemy-sprite') ? 'enemy-sprite' : 'enemy-fallback';
+        const bulletTexture = this.textures.exists('bullet-sprite') ? 'bullet-sprite' : 'bullet-fallback';
+        
+        console.log('Using textures:');
+        console.log('- Player:', playerTexture);
+        console.log('- Enemy:', enemyTexture);
+        console.log('- Bullet:', bulletTexture);
+        
+        // Store texture references for use throughout the game
+        this.gameTextures = {
+            player: playerTexture,
+            enemy: enemyTexture,
+            bullet: bulletTexture
+        };
+
         // Initialize physics groups
         this.bullets = this.physics.add.group({
             runChildUpdate: true
@@ -106,17 +114,20 @@ class GameScene extends Phaser.Scene {
 
         this.enemies = this.physics.add.group();
 
-        // Create player - try to use loaded sprite, fallback to generated one
+        // Create player with the appropriate texture
         const gameWidth = this.sys.game.config.width;
         const gameHeight = this.sys.game.config.height;
         
-        const playerTexture = this.textures.exists('player-sprite') ? 'player-sprite' : 'player';
         this.player = this.physics.add.sprite(100, gameHeight / 2, playerTexture);
         this.player.setCollideWorldBounds(true);
         this.player.body.setSize(14, 14);
         
-        // Add a subtle glow effect to the player
-        this.player.postFX.addGlow(0x00FF00, 2);
+        // Add a subtle glow effect to the player (if PNG loaded, less glow needed)
+        if (playerTexture === 'player-sprite') {
+            this.player.postFX.addGlow(0x00FF00, 1); // Less glow for PNG
+        } else {
+            this.player.postFX.addGlow(0x00FF00, 2); // More glow for fallback
+        }
 
         console.log('Player created at:', this.player.x, this.player.y, 'using texture:', playerTexture);
 
@@ -146,7 +157,12 @@ class GameScene extends Phaser.Scene {
             strokeThickness: 2
         }).setOrigin(0.5);
 
-        this.add.text(gameWidth / 2, 100, 'WASD: Move | Space: Fire | 🔧 RPA編集: Program bullets', {
+        // Update instructions to mention the new sprites
+        const instructionText = this.textures.exists('player-sprite') ? 
+            'WASD: Move | Space: Fire | 🔧 RPA編集: Program bullets | 🎨 Using custom PNG sprites!' :
+            'WASD: Move | Space: Fire | 🔧 RPA編集: Program bullets | 🎮 Upload PNGs to assets/images/ for custom sprites!';
+        
+        this.add.text(gameWidth / 2, 100, instructionText, {
             fontSize: '16px',
             fill: '#cccccc',
             stroke: '#000000',
@@ -156,7 +172,17 @@ class GameScene extends Phaser.Scene {
         // Add background stars for visual appeal
         this.createStarField();
 
-        console.log('Game initialized successfully!');
+        // Show sprite loading status
+        if (this.textures.exists('player-sprite')) {
+            this.add.text(10, gameHeight - 40, '🎨 Custom PNG sprites loaded!', {
+                fontSize: '14px',
+                fill: '#4CAF50',
+                stroke: '#000000',
+                strokeThickness: 1
+            });
+        }
+
+        console.log('Game initialized successfully with custom PNG sprites!');
     }
 
     createStarField() {
@@ -413,8 +439,9 @@ class GameScene extends Phaser.Scene {
 // Enemy class
 class Enemy extends Phaser.Physics.Arcade.Sprite {
     constructor(scene, x, y) {
-        // Try to use loaded sprite, fallback to generated one
-        const enemyTexture = scene.textures.exists('enemy-sprite') ? 'enemy-sprite' : 'enemy';
+        // Use the appropriate enemy texture
+        const enemyTexture = scene.gameTextures ? scene.gameTextures.enemy : 
+                           (scene.textures.exists('enemy-sprite') ? 'enemy-sprite' : 'enemy-fallback');
         super(scene, x, y, enemyTexture);
         
         scene.add.existing(this);
@@ -423,13 +450,17 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.health = 1;
         this.speed = scene.gameConfig.enemySpeed;
         
-        // Add subtle red glow effect
-        this.postFX.addGlow(0xFF0000, 1);
+        // Add subtle red glow effect (less for PNG, more for fallback)
+        if (enemyTexture === 'enemy-sprite') {
+            this.postFX.addGlow(0xFF0000, 0.5); // Less glow for PNG
+        } else {
+            this.postFX.addGlow(0xFF0000, 1); // More glow for fallback
+        }
         
         // Move towards player
         this.moveTowardsPlayer();
         
-        console.log('Enemy created at:', x, y);
+        console.log('Enemy created at:', x, y, 'using texture:', enemyTexture);
     }
 
     moveTowardsPlayer() {
@@ -473,8 +504,9 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
                 onComplete: () => explosion.destroy()
             });
             
-            // Add particle effect for explosion
-            const particles = this.scene.add.particles(this.x, this.y, 'bullet', {
+            // Add particle effect for explosion using the bullet texture
+            const bulletTexture = this.scene.gameTextures ? this.scene.gameTextures.bullet : 'bullet-fallback';
+            const particles = this.scene.add.particles(this.x, this.y, bulletTexture, {
                 speed: { min: 50, max: 150 },
                 lifespan: 300,
                 quantity: 8,
@@ -546,7 +578,7 @@ function initializeGame() {
             game.scale.resize(window.innerWidth, window.innerHeight);
         });
         
-        console.log('Game created successfully with full screen');
+        console.log('Game created successfully with custom PNG sprites support');
         return game;
     } catch (error) {
         console.error('Failed to initialize game:', error);
