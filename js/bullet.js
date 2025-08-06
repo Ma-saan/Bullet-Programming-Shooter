@@ -1,7 +1,11 @@
 // Bullet class with RPA program execution
 class Bullet extends Phaser.Physics.Arcade.Sprite {
     constructor(scene, x, y, program = []) {
-        super(scene, x, y, 'bullet');
+        // Use the appropriate bullet texture from game scene
+        const bulletTexture = scene.gameTextures ? scene.gameTextures.bullet : 
+                             (scene.textures.exists('bullet-sprite') ? 'bullet-sprite' : 'bullet-fallback');
+        
+        super(scene, x, y, bulletTexture);
         
         this.scene = scene;
         this.program = program.slice(); // Copy the program
@@ -34,7 +38,16 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             console.error('Bullet body not created!');
         }
         
-        console.log('Bullet created at:', x, y, 'with program:', program.length, 'nodes');
+        // Add visual effects based on texture type
+        if (bulletTexture === 'bullet-sprite') {
+            // Less glow for PNG sprite
+            this.postFX.addGlow(0xFFFF00, 0.5);
+        } else {
+            // More glow for fallback sprite
+            this.postFX.addGlow(0xFFFF00, 1);
+        }
+        
+        console.log('Bullet created at:', x, y, 'with texture:', bulletTexture, 'program:', program.length, 'nodes');
         console.log('Bullet body exists:', !!this.body);
         
         // Start program execution
@@ -232,6 +245,17 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             this.scene.bullets.add(bullet2);
         }
         
+        // Visual effect for split
+        const splitEffect = this.scene.add.circle(this.x, this.y, 15, 0x00FFFF, 0.8);
+        this.scene.tweens.add({
+            targets: splitEffect,
+            scaleX: 2,
+            scaleY: 2,
+            alpha: 0,
+            duration: 200,
+            onComplete: () => splitEffect.destroy()
+        });
+        
         console.log('Bullet split into two');
         this.destroy();
     }
@@ -250,6 +274,21 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             alpha: 0,
             duration: 500,
             onComplete: () => explosion.destroy()
+        });
+        
+        // Add particle explosion using the bullet texture
+        const bulletTexture = this.scene.gameTextures ? this.scene.gameTextures.bullet : 'bullet-fallback';
+        const explosionParticles = this.scene.add.particles(this.x, this.y, bulletTexture, {
+            speed: { min: 100, max: 300 },
+            lifespan: 400,
+            quantity: 15,
+            scale: { start: 0.8, end: 0.1 },
+            tint: [0xFF6600, 0xFF0000, 0xFFAA00],
+            blendMode: 'ADD'
+        });
+        
+        this.scene.time.delayedCall(500, () => {
+            explosionParticles.destroy();
         });
         
         // Damage nearby enemies
@@ -272,6 +311,10 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         if (this.body) {
             this.body.setBounce(1, 1);
             this.maxBounces = 5;
+            
+            // Add visual indication of bounce ability
+            this.setTint(0x00FFFF); // Cyan tint for bouncy bullets
+            
             console.log('Bullet bounce enabled');
         }
     }
@@ -282,6 +325,28 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         this.speed *= 1.5;
         const currentAngle = Phaser.Math.Angle.Between(0, 0, this.body.velocity.x, this.body.velocity.y);
         this.setVelocity(Math.cos(currentAngle) * this.speed, Math.sin(currentAngle) * this.speed);
+        
+        // Add visual indication of speed boost
+        this.setTint(0xFF00FF); // Magenta tint for fast bullets
+        
+        // Add speed trail effect
+        const trail = this.scene.add.particles(this.x, this.y, this.texture.key, {
+            speed: 0,
+            lifespan: 200,
+            quantity: 1,
+            scale: { start: 0.8, end: 0.1 },
+            alpha: { start: 0.5, end: 0 },
+            tint: 0xFF00FF,
+            follow: this
+        });
+        
+        // Clean up trail when bullet is destroyed
+        const originalDestroy = this.destroy.bind(this);
+        this.destroy = function() {
+            trail.destroy();
+            originalDestroy();
+        };
+        
         console.log('Bullet speed increased to', this.speed);
     }
 
@@ -297,6 +362,17 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         if (this.bounceCount >= this.maxBounces) {
             this.destroy();
         } else {
+            // Visual feedback for wall bounce
+            const bounceEffect = this.scene.add.circle(this.x, this.y, 10, 0xFFFFFF, 0.8);
+            this.scene.tweens.add({
+                targets: bounceEffect,
+                scaleX: 1.5,
+                scaleY: 1.5,
+                alpha: 0,
+                duration: 150,
+                onComplete: () => bounceEffect.destroy()
+            });
+            
             this.evaluateProgram();
         }
     }
@@ -307,6 +383,17 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             if (node.type === 'when' && node.action === 'enemy-contact') {
                 this.programState.conditions[`when_${index}`] = true;
             }
+        });
+        
+        // Visual feedback for enemy hit
+        const hitEffect = this.scene.add.circle(this.x, this.y, 12, 0xFF4444, 0.9);
+        this.scene.tweens.add({
+            targets: hitEffect,
+            scaleX: 2,
+            scaleY: 2,
+            alpha: 0,
+            duration: 200,
+            onComplete: () => hitEffect.destroy()
         });
         
         // Damage the enemy
@@ -328,6 +415,11 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             this.y < -50 || this.y > gameHeight + 50) {
             this.destroy();
             return;
+        }
+        
+        // Add subtle rotation for visual appeal (only for PNG sprites)
+        if (this.texture.key === 'bullet-sprite') {
+            this.rotation += 0.1;
         }
         
         // Continuously evaluate conditions that might change
@@ -369,7 +461,7 @@ function createProgrammedBullet(scene, x, y, direction, program) {
         }
     });
     
-    console.log('Created bullet, body exists:', !!bullet.body);
+    console.log('Created bullet with texture:', bullet.texture.key);
     
     return bullet;
 }
