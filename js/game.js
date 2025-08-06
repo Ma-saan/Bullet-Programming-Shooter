@@ -308,10 +308,11 @@ class GameScene extends Phaser.Scene {
         }
 
         if (!program || program.length === 0) {
-            console.log('No valid program found, creating default bullet...');
-            // Create a default bullet that moves to the right
+            console.log('No valid program found, creating default normal bullet...');
+            // Create a normal bullet that flies straight and gets destroyed on enemy contact
+            // This is the standard behavior for shooting games
             program = [
-                { type: 'when', action: 'immediate', toString: () => '即座に' },
+                { type: 'when', action: 'enemy-contact', toString: () => '敵に接触時' },
                 { type: 'do', action: 'destroy', toString: () => '消える' }
             ];
         }
