@@ -18,28 +18,73 @@ class GameScene extends Phaser.Scene {
     }
 
     preload() {
+        // Create assets directory if images are not available, create sprites programmatically
         this.createSprites();
+        
+        // Attempt to load external images if available
+        // You can replace these URLs with actual image paths when assets are uploaded
+        this.load.image('player-sprite', 'data:image/svg+xml;base64,' + btoa(`
+            <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+                <rect width="16" height="16" fill="#00AA00"/>
+                <rect x="2" y="2" width="12" height="12" fill="#00FF00"/>
+                <rect x="6" y="0" width="4" height="4" fill="#00FF00"/>
+                <rect x="13" y="6" width="3" height="4" fill="#FFFF00"/>
+            </svg>
+        `));
+        
+        this.load.image('enemy-sprite', 'data:image/svg+xml;base64,' + btoa(`
+            <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+                <rect width="16" height="16" fill="#666666"/>
+                <rect x="2" y="2" width="12" height="12" fill="#888888"/>
+                <polygon points="0,8 8,4 8,12" fill="#AA0000"/>
+                <rect x="10" y="6" width="4" height="4" fill="#FF0000"/>
+            </svg>
+        `));
+        
+        this.load.image('bullet-sprite', 'data:image/svg+xml;base64,' + btoa(`
+            <svg width="8" height="8" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="4" cy="4" r="4" fill="#FFFF00"/>
+                <circle cx="4" cy="4" r="2" fill="#FFAA00"/>
+            </svg>
+        `));
     }
 
     createSprites() {
-        // Player sprite (blue square)
+        // Player sprite (improved green tank-like design)
         const playerGraphics = this.add.graphics();
-        playerGraphics.fillStyle(0x0088ff);
+        playerGraphics.fillStyle(0x00AA00);
         playerGraphics.fillRect(0, 0, 16, 16);
+        playerGraphics.fillStyle(0x00FF00);
+        playerGraphics.fillRect(2, 2, 12, 12);
+        // Tank cannon
+        playerGraphics.fillRect(6, 0, 4, 4);
+        // Muzzle flash area
+        playerGraphics.fillStyle(0xFFFF00);
+        playerGraphics.fillRect(13, 6, 3, 4);
         playerGraphics.generateTexture('player', 16, 16);
         playerGraphics.destroy();
 
-        // Enemy sprite (red square)
+        // Enemy sprite (improved gray aircraft-like design)
         const enemyGraphics = this.add.graphics();
-        enemyGraphics.fillStyle(0xff4444);
+        enemyGraphics.fillStyle(0x666666);
         enemyGraphics.fillRect(0, 0, 16, 16);
+        enemyGraphics.fillStyle(0x888888);
+        enemyGraphics.fillRect(2, 2, 12, 12);
+        // Enemy weapon/nose
+        enemyGraphics.fillStyle(0xAA0000);
+        enemyGraphics.fillTriangle(0, 8, 8, 4, 8, 12);
+        // Enemy engine/detail
+        enemyGraphics.fillStyle(0xFF0000);
+        enemyGraphics.fillRect(10, 6, 4, 4);
         enemyGraphics.generateTexture('enemy', 16, 16);
         enemyGraphics.destroy();
 
-        // Bullet sprite (yellow circle)
+        // Bullet sprite (improved glowing effect)
         const bulletGraphics = this.add.graphics();
-        bulletGraphics.fillStyle(0xffff00);
+        bulletGraphics.fillStyle(0xFFFF00);
         bulletGraphics.fillCircle(4, 4, 4);
+        bulletGraphics.fillStyle(0xFFAA00);
+        bulletGraphics.fillCircle(4, 4, 2);
         bulletGraphics.generateTexture('bullet', 8, 8);
         bulletGraphics.destroy();
 
@@ -61,15 +106,19 @@ class GameScene extends Phaser.Scene {
 
         this.enemies = this.physics.add.group();
 
-        // Create player
+        // Create player - try to use loaded sprite, fallback to generated one
         const gameWidth = this.sys.game.config.width;
         const gameHeight = this.sys.game.config.height;
         
-        this.player = this.physics.add.sprite(100, gameHeight / 2, 'player');
+        const playerTexture = this.textures.exists('player-sprite') ? 'player-sprite' : 'player';
+        this.player = this.physics.add.sprite(100, gameHeight / 2, playerTexture);
         this.player.setCollideWorldBounds(true);
         this.player.body.setSize(14, 14);
+        
+        // Add a subtle glow effect to the player
+        this.player.postFX.addGlow(0x00FF00, 2);
 
-        console.log('Player created at:', this.player.x, this.player.y);
+        console.log('Player created at:', this.player.x, this.player.y, 'using texture:', playerTexture);
 
         // Set up controls
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -77,6 +126,7 @@ class GameScene extends Phaser.Scene {
 
         // Set up collisions
         this.physics.add.overlap(this.bullets, this.enemies, this.bulletHitsEnemy, null, this);
+        this.physics.add.overlap(this.player, this.enemies, this.playerHitsEnemy, null, this);
         this.physics.world.on('worldbounds', this.onWorldBounds, this);
 
         // Initialize score and stage display
@@ -151,6 +201,13 @@ class GameScene extends Phaser.Scene {
                 bullet.update();
             }
         });
+
+        // Update enemies
+        this.enemies.children.entries.forEach(enemy => {
+            if (enemy.update && typeof enemy.update === 'function') {
+                enemy.update();
+            }
+        });
     }
 
     handlePlayerMovement() {
@@ -170,6 +227,15 @@ class GameScene extends Phaser.Scene {
             this.player.setVelocityY(-speed);
         } else if (this.wasd.S.isDown) {
             this.player.setVelocityY(speed);
+        }
+
+        // Add rotation based on movement for better visual feedback
+        if (this.wasd.W.isDown) {
+            this.player.rotation = -Math.PI / 12;
+        } else if (this.wasd.S.isDown) {
+            this.player.rotation = Math.PI / 12;
+        } else {
+            this.player.rotation = 0;
         }
     }
 
@@ -248,6 +314,17 @@ class GameScene extends Phaser.Scene {
         // Visual feedback for firing
         this.cameras.main.shake(100, 0.005);
         
+        // Muzzle flash effect
+        const muzzleFlash = this.add.circle(this.player.x + 20, this.player.y, 8, 0xFFFF00, 0.8);
+        this.tweens.add({
+            targets: muzzleFlash,
+            scaleX: 2,
+            scaleY: 2,
+            alpha: 0,
+            duration: 100,
+            onComplete: () => muzzleFlash.destroy()
+        });
+        
         // Show program info
         const programText = program.map(node => 
             typeof node.toString === 'function' ? node.toString() : node.action
@@ -262,10 +339,29 @@ class GameScene extends Phaser.Scene {
         } else {
             // Default behavior
             this.addScore(10);
+            enemy.takeDamage(1);
             if (bullet.destroy) {
                 bullet.destroy();
             }
         }
+    }
+
+    playerHitsEnemy(player, enemy) {
+        console.log('Player hit enemy');
+        // Player takes damage or game over logic
+        this.cameras.main.shake(200, 0.02);
+        
+        // Visual feedback
+        player.setTint(0xff0000);
+        this.time.delayedCall(200, () => {
+            player.clearTint();
+        });
+        
+        // Destroy enemy on contact
+        enemy.takeDamage(999);
+        
+        // Reduce score as penalty
+        this.addScore(-5);
     }
 
     onWorldBounds(event) {
@@ -281,13 +377,15 @@ class GameScene extends Phaser.Scene {
 
     addScore(points) {
         this.score += points;
+        if (this.score < 0) this.score = 0;
         this.updateHUD();
         
         // Visual feedback for scoring
         const gameWidth = this.sys.game.config.width;
-        const scoreText = this.add.text(gameWidth / 2, 150, `+${points}`, {
+        const color = points > 0 ? '#4CAF50' : '#F44336';
+        const scoreText = this.add.text(gameWidth / 2, 150, `${points > 0 ? '+' : ''}${points}`, {
             fontSize: '24px',
-            fill: '#4CAF50',
+            fill: color,
             stroke: '#000000',
             strokeThickness: 2
         }).setOrigin(0.5);
@@ -315,13 +413,18 @@ class GameScene extends Phaser.Scene {
 // Enemy class
 class Enemy extends Phaser.Physics.Arcade.Sprite {
     constructor(scene, x, y) {
-        super(scene, x, y, 'enemy');
+        // Try to use loaded sprite, fallback to generated one
+        const enemyTexture = scene.textures.exists('enemy-sprite') ? 'enemy-sprite' : 'enemy';
+        super(scene, x, y, enemyTexture);
         
         scene.add.existing(this);
         scene.physics.add.existing(this);
         
         this.health = 1;
         this.speed = scene.gameConfig.enemySpeed;
+        
+        // Add subtle red glow effect
+        this.postFX.addGlow(0xFF0000, 1);
         
         // Move towards player
         this.moveTowardsPlayer();
@@ -340,6 +443,9 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
                 Math.cos(angle) * this.speed,
                 Math.sin(angle) * this.speed
             );
+            
+            // Rotate enemy to face movement direction
+            this.rotation = angle;
         }
     }
 
@@ -348,7 +454,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         console.log('Enemy took damage:', damage, 'remaining health:', this.health);
         
         // Visual feedback
-        this.setTint(0xff0000);
+        this.setTint(0xffffff);
         this.scene.time.delayedCall(100, () => {
             this.clearTint();
         });
@@ -367,6 +473,19 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
                 onComplete: () => explosion.destroy()
             });
             
+            // Add particle effect for explosion
+            const particles = this.scene.add.particles(this.x, this.y, 'bullet', {
+                speed: { min: 50, max: 150 },
+                lifespan: 300,
+                quantity: 8,
+                scale: { start: 0.5, end: 0 },
+                tint: 0xff6600
+            });
+            
+            this.scene.time.delayedCall(300, () => {
+                particles.destroy();
+            });
+            
             console.log('Enemy destroyed');
             this.destroy();
         }
@@ -376,6 +495,12 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         // Periodically adjust direction towards player
         if (this.scene.time.now % 1000 < 16) { // Roughly every second
             this.moveTowardsPlayer();
+        }
+        
+        // Remove enemies that go too far off screen
+        if (this.x < -100 || this.x > this.scene.sys.game.config.width + 100 ||
+            this.y < -100 || this.y > this.scene.sys.game.config.height + 100) {
+            this.destroy();
         }
     }
 }
