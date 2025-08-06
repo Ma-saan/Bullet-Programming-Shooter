@@ -39,12 +39,16 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         }
         
         // Add visual effects based on texture type
-        if (bulletTexture === 'bullet-sprite') {
-            // Less glow for PNG sprite
-            this.postFX.addGlow(0xFFFF00, 0.5);
-        } else {
-            // More glow for fallback sprite
-            this.postFX.addGlow(0xFFFF00, 1);
+        try {
+            if (bulletTexture === 'bullet-sprite') {
+                // Less glow for PNG sprite
+                this.postFX.addGlow(0xFFFF00, 0.5);
+            } else {
+                // More glow for fallback sprite
+                this.postFX.addGlow(0xFFFF00, 1);
+            }
+        } catch (error) {
+            console.warn('Could not add glow effect:', error);
         }
         
         console.log('Bullet created at:', x, y, 'with texture:', bulletTexture, 'program:', program.length, 'nodes');
@@ -277,19 +281,25 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         });
         
         // Add particle explosion using the bullet texture
-        const bulletTexture = this.scene.gameTextures ? this.scene.gameTextures.bullet : 'bullet-fallback';
-        const explosionParticles = this.scene.add.particles(this.x, this.y, bulletTexture, {
-            speed: { min: 100, max: 300 },
-            lifespan: 400,
-            quantity: 15,
-            scale: { start: 0.8, end: 0.1 },
-            tint: [0xFF6600, 0xFF0000, 0xFFAA00],
-            blendMode: 'ADD'
-        });
-        
-        this.scene.time.delayedCall(500, () => {
-            explosionParticles.destroy();
-        });
+        try {
+            const bulletTexture = this.scene.gameTextures ? this.scene.gameTextures.bullet : 'bullet-fallback';
+            const explosionParticles = this.scene.add.particles(this.x, this.y, bulletTexture, {
+                speed: { min: 100, max: 300 },
+                lifespan: 400,
+                quantity: 15,
+                scale: { start: 0.8, end: 0.1 },
+                tint: [0xFF6600, 0xFF0000, 0xFFAA00],
+                blendMode: 'ADD'
+            });
+            
+            this.scene.time.delayedCall(500, () => {
+                if (explosionParticles && explosionParticles.destroy) {
+                    explosionParticles.destroy();
+                }
+            });
+        } catch (error) {
+            console.warn('Could not create explosion particles:', error);
+        }
         
         // Damage nearby enemies
         const enemies = this.scene.enemies ? this.scene.enemies.children.entries : [];
@@ -330,22 +340,28 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         this.setTint(0xFF00FF); // Magenta tint for fast bullets
         
         // Add speed trail effect
-        const trail = this.scene.add.particles(this.x, this.y, this.texture.key, {
-            speed: 0,
-            lifespan: 200,
-            quantity: 1,
-            scale: { start: 0.8, end: 0.1 },
-            alpha: { start: 0.5, end: 0 },
-            tint: 0xFF00FF,
-            follow: this
-        });
-        
-        // Clean up trail when bullet is destroyed
-        const originalDestroy = this.destroy.bind(this);
-        this.destroy = function() {
-            trail.destroy();
-            originalDestroy();
-        };
+        try {
+            const trail = this.scene.add.particles(this.x, this.y, this.texture.key, {
+                speed: 0,
+                lifespan: 200,
+                quantity: 1,
+                scale: { start: 0.8, end: 0.1 },
+                alpha: { start: 0.5, end: 0 },
+                tint: 0xFF00FF,
+                follow: this
+            });
+            
+            // Clean up trail when bullet is destroyed
+            const originalDestroy = this.destroy.bind(this);
+            this.destroy = function() {
+                if (trail && trail.destroy) {
+                    trail.destroy();
+                }
+                originalDestroy();
+            };
+        } catch (error) {
+            console.warn('Could not create speed trail:', error);
+        }
         
         console.log('Bullet speed increased to', this.speed);
     }
@@ -378,6 +394,8 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     }
 
     onEnemyCollision(enemy) {
+        console.log('Bullet.onEnemyCollision called');
+        
         // Trigger enemy contact events
         this.program.forEach((node, index) => {
             if (node.type === 'when' && node.action === 'enemy-contact') {
@@ -385,19 +403,27 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             }
         });
         
-        // Visual feedback for enemy hit
-        const hitEffect = this.scene.add.circle(this.x, this.y, 12, 0xFF4444, 0.9);
-        this.scene.tweens.add({
-            targets: hitEffect,
-            scaleX: 2,
-            scaleY: 2,
-            alpha: 0,
-            duration: 200,
-            onComplete: () => hitEffect.destroy()
-        });
+        // Visual feedback for enemy hit - safe implementation
+        try {
+            const hitEffect = this.scene.add.circle(this.x, this.y, 12, 0xFF4444, 0.9);
+            this.scene.tweens.add({
+                targets: hitEffect,
+                scaleX: 2,
+                scaleY: 2,
+                alpha: 0,
+                duration: 200,
+                onComplete: () => {
+                    if (hitEffect && hitEffect.destroy) {
+                        hitEffect.destroy();
+                    }
+                }
+            });
+        } catch (error) {
+            console.warn('Could not create hit effect:', error);
+        }
         
         // Damage the enemy
-        if (enemy.takeDamage) {
+        if (enemy && enemy.takeDamage && typeof enemy.takeDamage === 'function') {
             enemy.takeDamage(this.damage);
         }
         
@@ -427,15 +453,19 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     }
 
     destroy() {
+        if (!this.isActive) return; // Prevent double destruction
+        
         this.isActive = false;
         
         // Clear all timers
         this.programState.timers.forEach(timer => {
-            if (timer) timer.destroy();
+            if (timer && timer.destroy) {
+                timer.destroy();
+            }
         });
         
-        // Remove from bullet group
-        if (this.scene.bullets && this.scene.bullets.children.entries.includes(this)) {
+        // Remove from bullet group safely
+        if (this.scene.bullets && this.scene.bullets.children && this.scene.bullets.children.entries.includes(this)) {
             this.scene.bullets.remove(this);
         }
         
@@ -449,7 +479,7 @@ function createProgrammedBullet(scene, x, y, direction, program) {
     
     // Wait a frame to ensure physics body is created
     scene.time.delayedCall(10, () => {
-        if (bullet.body) {
+        if (bullet.body && bullet.isActive) {
             const speed = bullet.speed;
             const velocityX = Math.cos(direction) * speed;
             const velocityY = Math.sin(direction) * speed;
@@ -457,7 +487,7 @@ function createProgrammedBullet(scene, x, y, direction, program) {
             bullet.setVelocity(velocityX, velocityY);
             console.log('Set bullet velocity:', velocityX, velocityY);
         } else {
-            console.error('Bullet body still not available after delay');
+            console.error('Bullet body still not available after delay or bullet destroyed');
         }
     });
     
