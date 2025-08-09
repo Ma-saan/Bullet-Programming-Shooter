@@ -1,13 +1,22 @@
 // RPA Node System
 class RPANode {
     constructor(type, action, data = {}) {
-        this.type = type; // 'when', 'if', 'do'
+        this.type = type; // 'property', 'when', 'if', 'do'
         this.action = action;
         this.data = data;
     }
 
     toString() {
         const actionNames = {
+            // PROPERTY nodes
+            'homing': 'ホーミング',
+            'penetrate': '貫通',
+            'high-damage': '高威力',
+            'poison': '継続ダメージ',
+            'magnetic': '磁力効果',
+            'shield-break': 'シールド貫通',
+            'slow-effect': '時間遅延',
+            
             // WHEN nodes
             'immediate': '即座に',
             'timer-1': '1秒後',
@@ -74,17 +83,28 @@ class RPAProgram {
         const program = this.slots[slotIndex];
         if (program.length === 0) return { valid: false, reason: 'プログラムが空です' };
 
-        // Basic validation rules
-        const hasWhen = program.some(node => node.type === 'when');
-        const hasDo = program.some(node => node.type === 'do');
+        // Separate nodes by type
+        const propertyNodes = program.filter(node => node.type === 'property');
+        const whenNodes = program.filter(node => node.type === 'when');
+        const ifNodes = program.filter(node => node.type === 'if');
+        const doNodes = program.filter(node => node.type === 'do');
+
+        // Basic validation rules - PROPERTY nodes are optional, but need WHEN and DO
+        const hasWhen = whenNodes.length > 0;
+        const hasDo = doNodes.length > 0;
 
         if (!hasWhen) return { valid: false, reason: 'WHEN ノードが必要です' };
         if (!hasDo) return { valid: false, reason: 'DO ノードが必要です' };
 
-        // Check valid sequences
-        const whenIndex = program.findIndex(node => node.type === 'when');
-        const ifIndex = program.findIndex(node => node.type === 'if');
-        const doIndex = program.findIndex(node => node.type === 'do');
+        // PROPERTY nodes can be anywhere and don't affect flow validation
+        // Check valid flow sequences (ignoring PROPERTY nodes for flow validation)
+        const flowNodes = program.filter(node => node.type !== 'property');
+        
+        if (flowNodes.length === 0) return { valid: false, reason: 'フローノードが必要です' };
+        
+        const whenIndex = flowNodes.findIndex(node => node.type === 'when');
+        const ifIndex = flowNodes.findIndex(node => node.type === 'if');
+        const doIndex = flowNodes.findIndex(node => node.type === 'do');
 
         // Valid patterns: WHEN→DO, WHEN→IF→DO, IF→WHEN→DO
         if (ifIndex === -1) {
@@ -186,6 +206,18 @@ class RPAProgram {
                 { type: 'when', action: 'timer-1' },
                 { type: 'if', action: 'enemy-many' },
                 { type: 'do', action: 'split' }
+            ],
+            'homing-penetrate': [
+                { type: 'property', action: 'homing' },
+                { type: 'property', action: 'penetrate' },
+                { type: 'when', action: 'enemy-contact' },
+                { type: 'do', action: 'destroy' }
+            ],
+            'poison-magnetic': [
+                { type: 'property', action: 'poison' },
+                { type: 'property', action: 'magnetic' },
+                { type: 'when', action: 'immediate' },
+                { type: 'do', action: 'explode' }
             ]
         };
 
@@ -446,7 +478,7 @@ function testFireBullet() {
     console.log('No valid programs found!');
     
     // Show user-friendly message
-    const message = 'プログラムが見つかりません！\n\n例を試すか、新しいプログラムを作成してください：\n1. WHENノード（いつ）\n2. DOノード（実行）\nの順でドラッグしてください。';
+    const message = 'プログラムが見つかりません！\n\n例を試すか、新しいプログラムを作成してください：\n1. PROPERTY ノード（属性・任意）\n2. WHEN ノード（いつ）\n3. DO ノード（実行）\nの順でドラッグしてください。';
     alert(message);
 }
 
@@ -456,7 +488,9 @@ function simulateBulletBehavior(program) {
     // Simple simulation for testing
     let time = 0;
     program.forEach(node => {
-        if (node.type === 'when') {
+        if (node.type === 'property') {
+            console.log(`${time}ms: Apply property ${node.toString()}`);
+        } else if (node.type === 'when') {
             if (node.action === 'immediate') {
                 console.log(`${time}ms: Trigger immediate`);
             } else if (node.action.startsWith('timer-')) {
