@@ -68,6 +68,19 @@
                         <h3>ノードパレット</h3>
                         <div id="node-palette">
                             <div class="node-category">
+                                <h4>🔮 PROPERTY (属性)</h4>
+                                <div class="node-grid">
+                                    <div class="node" data-type="property" data-action="homing">ホーミング</div>
+                                    <div class="node" data-type="property" data-action="penetrate">貫通</div>
+                                    <div class="node" data-type="property" data-action="high-damage">高威力</div>
+                                    <div class="node" data-type="property" data-action="poison">継続ダメージ</div>
+                                    <div class="node" data-type="property" data-action="magnetic">磁力効果</div>
+                                    <div class="node" data-type="property" data-action="shield-break">シールド貫通</div>
+                                    <div class="node" data-type="property" data-action="slow-effect">時間遅延</div>
+                                </div>
+                            </div>
+                            
+                            <div class="node-category">
                                 <h4>⏰ WHEN (いつ)</h4>
                                 <div class="node-grid">
                                     <div class="node" data-type="when" data-action="immediate">即座に</div>
@@ -149,6 +162,14 @@
                         <div class="example-card" data-example="smart-split">
                             <h4>賢い分裂弾</h4>
                             <p>[1秒後] → [敵が3体以上] → [分裂する]</p>
+                        </div>
+                        <div class="example-card" data-example="homing-penetrate">
+                            <h4>ホーミング貫通弾</h4>
+                            <p>[ホーミング] + [貫通] → [敵に接触時] → [消える]</p>
+                        </div>
+                        <div class="example-card" data-example="poison-magnetic">
+                            <h4>毒磁力弾</h4>
+                            <p>[継続ダメージ] + [磁力効果] → [即座に] → [爆発する]</p>
                         </div>
                     </div>
                 </div>
