@@ -434,7 +434,7 @@ class GameScene extends Phaser.Scene {
     }
 }
 
-// Enemy class
+// Enhanced Enemy class with PROPERTY effect support
 class Enemy extends Phaser.Physics.Arcade.Sprite {
     constructor(scene, x, y) {
         // Use the appropriate enemy texture
@@ -445,20 +445,46 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         scene.add.existing(this);
         scene.physics.add.existing(this);
         
+        // Basic properties
         this.health = 1;
-        this.speed = scene.gameConfig.enemySpeed;
+        this.maxHealth = 1;
+        this.baseSpeed = scene.gameConfig.enemySpeed;
+        this.speed = this.baseSpeed;
         
-        // Add subtle red glow effect (less for PNG, more for fallback)
+        // Status effects
+        this.statusEffects = {
+            poison: {
+                active: false,
+                damage: 0,
+                tickInterval: 1000, // 1 second
+                lastTick: 0,
+                visual: null
+            },
+            slow: {
+                active: false,
+                multiplier: 1.0,
+                duration: 0,
+                remaining: 0,
+                visual: null
+            },
+            shield: {
+                active: false,
+                health: 0,
+                visual: null
+            }
+        };
+        
+        // Add visual effects based on texture type
         if (enemyTexture === 'enemy-sprite') {
             this.postFX.addGlow(0xFF0000, 0.5); // Less glow for PNG
         } else {
             this.postFX.addGlow(0xFF0000, 1); // More glow for fallback
         }
         
-        // Move towards player
+        // Move towards player initially
         this.moveTowardsPlayer();
         
-        console.log('Enemy created at:', x, y, 'using texture:', enemyTexture);
+        console.log('Enhanced Enemy created at:', x, y, 'using texture:', enemyTexture);
     }
 
     moveTowardsPlayer() {
@@ -468,9 +494,12 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
                 this.scene.player.x, this.scene.player.y
             );
             
+            // Apply slow effect
+            const effectiveSpeed = this.speed * this.statusEffects.slow.multiplier;
+            
             this.setVelocity(
-                Math.cos(angle) * this.speed,
-                Math.sin(angle) * this.speed
+                Math.cos(angle) * effectiveSpeed,
+                Math.sin(angle) * effectiveSpeed
             );
             
             // Rotate enemy to face movement direction
@@ -478,9 +507,139 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         }
     }
 
-    takeDamage(damage = 1) {
+    applyPoison(damage, duration = 5000) {
+        console.log('Enemy poisoned with damage:', damage, 'for duration:', duration);
+        
+        this.statusEffects.poison.active = true;
+        this.statusEffects.poison.damage = damage * 0.5; // Poison does half damage over time
+        this.statusEffects.poison.lastTick = this.scene.time.now;
+        
+        // Visual effect for poison
+        if (!this.statusEffects.poison.visual) {
+            this.statusEffects.poison.visual = this.scene.add.circle(this.x, this.y, 12, 0x32CD32, 0.4);
+            this.statusEffects.poison.visual.setBlendMode(Phaser.BlendModes.ADD);
+        }
+        
+        // Remove poison after duration
+        this.scene.time.delayedCall(duration, () => {
+            this.removePoison();
+        });
+    }
+
+    removePoison() {
+        this.statusEffects.poison.active = false;
+        if (this.statusEffects.poison.visual) {
+            this.statusEffects.poison.visual.destroy();
+            this.statusEffects.poison.visual = null;
+        }
+        console.log('Poison effect removed');
+    }
+
+    applySlow(multiplier, duration) {
+        console.log('Enemy slowed with multiplier:', multiplier, 'for duration:', duration);
+        
+        this.statusEffects.slow.active = true;
+        this.statusEffects.slow.multiplier = multiplier;
+        this.statusEffects.slow.duration = duration;
+        this.statusEffects.slow.remaining = duration;
+        
+        // Visual effect for slow
+        if (!this.statusEffects.slow.visual) {
+            this.statusEffects.slow.visual = this.scene.add.circle(this.x, this.y, 16, 0x4682B4, 0.3);
+            this.statusEffects.slow.visual.setBlendMode(Phaser.BlendModes.MULTIPLY);
+            
+            // Pulsing effect
+            this.scene.tweens.add({
+                targets: this.statusEffects.slow.visual,
+                scaleX: 1.2,
+                scaleY: 1.2,
+                alpha: 0.1,
+                duration: 500,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+        }
+        
+        // Remove slow after duration
+        this.scene.time.delayedCall(duration, () => {
+            this.removeSlow();
+        });
+    }
+
+    removeSlow() {
+        this.statusEffects.slow.active = false;
+        this.statusEffects.slow.multiplier = 1.0;
+        if (this.statusEffects.slow.visual) {
+            this.statusEffects.slow.visual.destroy();
+            this.statusEffects.slow.visual = null;
+        }
+        console.log('Slow effect removed');
+    }
+
+    applyShield(shieldHealth) {
+        console.log('Enemy gained shield with health:', shieldHealth);
+        
+        this.statusEffects.shield.active = true;
+        this.statusEffects.shield.health = shieldHealth;
+        
+        // Visual effect for shield
+        if (!this.statusEffects.shield.visual) {
+            this.statusEffects.shield.visual = this.scene.add.circle(this.x, this.y, 20, 0xFFD700, 0.3);
+            this.statusEffects.shield.visual.setStrokeStyle(2, 0xFFD700, 0.8);
+            
+            // Rotating effect
+            this.scene.tweens.add({
+                targets: this.statusEffects.shield.visual,
+                rotation: Math.PI * 2,
+                duration: 2000,
+                repeat: -1,
+                ease: 'Linear'
+            });
+        }
+    }
+
+    removeShield() {
+        this.statusEffects.shield.active = false;
+        this.statusEffects.shield.health = 0;
+        if (this.statusEffects.shield.visual) {
+            // Shield break effect
+            const breakEffect = this.scene.add.circle(this.x, this.y, 25, 0xFFD700, 0.8);
+            this.scene.tweens.add({
+                targets: breakEffect,
+                scaleX: 2,
+                scaleY: 2,
+                alpha: 0,
+                duration: 300,
+                onComplete: () => breakEffect.destroy()
+            });
+            
+            this.statusEffects.shield.visual.destroy();
+            this.statusEffects.shield.visual = null;
+        }
+        console.log('Shield broken');
+    }
+
+    takeDamage(damage = 1, isShieldBreaking = false) {
+        console.log('Enemy taking damage:', damage, 'shield breaking:', isShieldBreaking);
+        
+        // Handle shield
+        if (this.statusEffects.shield.active && !isShieldBreaking) {
+            this.statusEffects.shield.health -= damage;
+            if (this.statusEffects.shield.health <= 0) {
+                this.removeShield();
+            }
+            // Visual feedback for shield hit
+            this.setTint(0xFFD700);
+            this.scene.time.delayedCall(100, () => {
+                this.clearTint();
+            });
+            return; // Shield absorbed the damage
+        }
+        
+        // Apply damage to health
         this.health -= damage;
-        console.log('Enemy took damage:', damage, 'remaining health:', this.health);
+        console.log('Enemy health after damage:', this.health);
         
         // Visual feedback
         this.setTint(0xffffff);
@@ -490,6 +649,11 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         
         if (this.health <= 0) {
             this.scene.addScore(10);
+            
+            // Clean up status effects
+            this.removePoison();
+            this.removeSlow();
+            this.removeShield();
             
             // Death effect
             const explosion = this.scene.add.circle(this.x, this.y, 20, 0xff6600, 0.7);
@@ -522,6 +686,42 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     update() {
+        // Update status effect visuals position
+        if (this.statusEffects.poison.visual) {
+            this.statusEffects.poison.visual.setPosition(this.x, this.y);
+        }
+        if (this.statusEffects.slow.visual) {
+            this.statusEffects.slow.visual.setPosition(this.x, this.y);
+        }
+        if (this.statusEffects.shield.visual) {
+            this.statusEffects.shield.visual.setPosition(this.x, this.y);
+        }
+        
+        // Handle poison damage
+        if (this.statusEffects.poison.active) {
+            const now = this.scene.time.now;
+            if (now - this.statusEffects.poison.lastTick >= this.statusEffects.poison.tickInterval) {
+                this.takeDamage(this.statusEffects.poison.damage);
+                this.statusEffects.poison.lastTick = now;
+                
+                // Poison damage visual effect
+                const poisonDamage = this.scene.add.text(this.x, this.y - 20, '-' + this.statusEffects.poison.damage.toFixed(1), {
+                    fontSize: '12px',
+                    fill: '#32CD32',
+                    stroke: '#000000',
+                    strokeThickness: 1
+                }).setOrigin(0.5);
+                
+                this.scene.tweens.add({
+                    targets: poisonDamage,
+                    y: this.y - 40,
+                    alpha: 0,
+                    duration: 1000,
+                    onComplete: () => poisonDamage.destroy()
+                });
+            }
+        }
+        
         // Periodically adjust direction towards player
         if (this.scene.time.now % 1000 < 16) { // Roughly every second
             this.moveTowardsPlayer();
@@ -530,6 +730,10 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         // Remove enemies that go too far off screen
         if (this.x < -100 || this.x > this.scene.sys.game.config.width + 100 ||
             this.y < -100 || this.y > this.scene.sys.game.config.height + 100) {
+            // Clean up status effects before destroying
+            this.removePoison();
+            this.removeSlow();
+            this.removeShield();
             this.destroy();
         }
     }
