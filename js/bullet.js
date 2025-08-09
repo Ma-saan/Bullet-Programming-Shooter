@@ -35,6 +35,10 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             slowEffect: false
         };
         
+        // Visual effects tracking
+        this.appliedColors = [];
+        this.activeEffects = [];
+        
         // Add to scene first
         scene.add.existing(this);
         
@@ -90,53 +94,127 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
                 this.applyProperty(node);
             }
         });
+        
+        // Apply combined visual effects after all properties are set
+        this.updateCombinedVisuals();
     }
 
     applyProperty(propertyNode) {
         switch (propertyNode.action) {
             case 'homing':
                 this.properties.homing = true;
-                this.setTint(0xFF69B4); // Pink tint for homing bullets
+                this.appliedColors.push(0xFF69B4); // Pink
                 console.log('Applied homing property');
                 break;
                 
             case 'penetrate':
                 this.properties.penetrate = true;
-                this.setTint(0x00CED1); // Dark turquoise for penetrating bullets
+                this.appliedColors.push(0x00CED1); // Dark turquoise
                 console.log('Applied penetrate property');
                 break;
                 
             case 'high-damage':
                 this.properties.highDamage = true;
                 this.damage *= 2;
-                this.setTint(0xFF4500); // Orange red for high damage
+                this.appliedColors.push(0xFF4500); // Orange red
                 console.log('Applied high damage property - damage now:', this.damage);
                 break;
                 
             case 'poison':
                 this.properties.poison = true;
-                this.setTint(0x32CD32); // Lime green for poison
+                this.appliedColors.push(0x32CD32); // Lime green
                 console.log('Applied poison property');
                 break;
                 
             case 'magnetic':
                 this.properties.magnetic = true;
-                this.setTint(0x8A2BE2); // Blue violet for magnetic
+                this.appliedColors.push(0x8A2BE2); // Blue violet
                 console.log('Applied magnetic property');
                 break;
                 
             case 'shield-break':
                 this.properties.shieldBreak = true;
-                this.setTint(0xFFD700); // Gold for shield breaking
+                this.appliedColors.push(0xFFD700); // Gold
                 console.log('Applied shield break property');
                 break;
                 
             case 'slow-effect':
                 this.properties.slowEffect = true;
-                this.setTint(0x4682B4); // Steel blue for slow effect
+                this.appliedColors.push(0x4682B4); // Steel blue
                 console.log('Applied slow effect property');
                 break;
         }
+    }
+
+    updateCombinedVisuals() {
+        if (this.appliedColors.length === 0) return;
+        
+        if (this.appliedColors.length === 1) {
+            // Single property - use that color
+            this.setTint(this.appliedColors[0]);
+        } else {
+            // Multiple properties - create visual indicators
+            this.createMultiPropertyVisuals();
+        }
+    }
+
+    createMultiPropertyVisuals() {
+        // For multiple properties, use a striped pattern or multiple rings
+        if (this.appliedColors.length === 2) {
+            // Two properties - use both colors with alternating tint
+            const primaryColor = this.appliedColors[0];
+            const secondaryColor = this.appliedColors[1];
+            
+            this.setTint(primaryColor);
+            
+            // Add a secondary ring effect
+            const ring = this.scene.add.circle(this.x, this.y, 8, secondaryColor, 0.6);
+            ring.setStrokeStyle(2, secondaryColor, 0.8);
+            this.activeEffects.push(ring);
+            
+            // Follow bullet
+            this.scene.tweens.add({
+                targets: ring,
+                scaleX: 1.2,
+                scaleY: 1.2,
+                alpha: 0.3,
+                duration: 500,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+            
+        } else if (this.appliedColors.length >= 3) {
+            // Three or more properties - use rainbow/prismatic effect
+            this.setTint(0xFFFFFF); // White base
+            
+            // Create multiple rotating rings
+            this.appliedColors.forEach((color, index) => {
+                const ring = this.scene.add.circle(this.x, this.y, 6 + index * 2, color, 0.4);
+                ring.setStrokeStyle(1, color, 0.9);
+                this.activeEffects.push(ring);
+                
+                // Different rotation speeds for each ring
+                this.scene.tweens.add({
+                    targets: ring,
+                    rotation: Math.PI * 2,
+                    duration: 1000 + index * 200,
+                    repeat: -1,
+                    ease: 'Linear'
+                });
+            });
+        }
+        
+        console.log(`Applied combined visuals for ${this.appliedColors.length} properties`);
+    }
+
+    updateEffectPositions() {
+        // Update positions of all visual effects to follow the bullet
+        this.activeEffects.forEach(effect => {
+            if (effect && effect.setPosition) {
+                effect.setPosition(this.x, this.y);
+            }
+        });
     }
 
     setupWhenNode(node, index) {
@@ -348,7 +426,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     split() {
         if (!this.isActive || !this.body) return;
         
-        // Create two new bullets
+        // Create two new bullets with the same properties
         const currentVelocity = { x: this.body.velocity.x, y: this.body.velocity.y };
         const currentAngle = Phaser.Math.Angle.Between(0, 0, currentVelocity.x, currentVelocity.y);
         
@@ -476,6 +554,8 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
                 follow: this
             });
             
+            this.activeEffects.push(trail);
+            
             // Clean up trail when bullet is destroyed
             const originalDestroy = this.destroy.bind(this);
             this.destroy = function() {
@@ -530,6 +610,10 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             enemy.applySlow(0.5, 2000); // 50% speed for 2 seconds
         }
         
+        // Handle shield breaking
+        const effectiveDamage = this.properties.shieldBreak ? this.damage : this.damage;
+        const shouldBreakShield = this.properties.shieldBreak;
+        
         // Trigger enemy contact events
         this.program.forEach((node, index) => {
             if (node.type === 'when' && node.action === 'enemy-contact') {
@@ -558,7 +642,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         
         // Damage the enemy
         if (enemy && enemy.takeDamage && typeof enemy.takeDamage === 'function') {
-            enemy.takeDamage(this.damage);
+            enemy.takeDamage(effectiveDamage, shouldBreakShield);
         }
         
         // Check if bullet should be destroyed (not if penetrating)
@@ -581,6 +665,9 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             this.destroy();
             return;
         }
+        
+        // Update positions of visual effects
+        this.updateEffectPositions();
         
         // Apply continuous property effects
         this.updateHoming();
@@ -606,6 +693,14 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
                 timer.destroy();
             }
         });
+        
+        // Clean up visual effects
+        this.activeEffects.forEach(effect => {
+            if (effect && effect.destroy) {
+                effect.destroy();
+            }
+        });
+        this.activeEffects = [];
         
         // Remove from bullet group safely
         if (this.scene.bullets && this.scene.bullets.children && this.scene.bullets.children.entries.includes(this)) {
