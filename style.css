@@ -214,6 +214,11 @@ body {
     left: 100%;
 }
 
+.node[data-type="property"] {
+    border-color: #9C27B0;
+    background: linear-gradient(135deg, #7B1FA2, #9C27B0);
+}
+
 .node[data-type="when"] {
     border-color: #2196F3;
     background: linear-gradient(135deg, #1976D2, #2196F3);
@@ -303,6 +308,11 @@ body {
 .slot-node:hover {
     background: rgba(255, 255, 255, 0.2);
     transform: scale(1.05);
+}
+
+.slot-node[data-type="property"] {
+    background: rgba(156, 39, 176, 0.3);
+    border-color: #9C27B0;
 }
 
 .slot-node[data-type="when"] {
