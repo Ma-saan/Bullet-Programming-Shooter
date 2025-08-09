@@ -338,10 +338,7 @@ class GameScene extends Phaser.Scene {
         console.log('Bullet added to bullets group. Current bullet count:', this.bullets.children.entries.length);
         console.log('Bullet velocity:', bullet.body.velocity.x, bullet.body.velocity.y);
 
-        // Visual feedback for firing
-        this.cameras.main.shake(100, 0.005);
-        
-        // Muzzle flash effect
+        // Muzzle flash effect (removed camera shake for better experience)
         const muzzleFlash = this.add.circle(this.player.x + 20, this.player.y, 8, 0xFFFF00, 0.8);
         this.tweens.add({
             targets: muzzleFlash,
