@@ -24,6 +24,17 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         this.maxBounces = 3;
         this.isActive = true;
         
+        // Property attributes (set by PROPERTY nodes)
+        this.properties = {
+            homing: false,
+            penetrate: false,
+            highDamage: false,
+            poison: false,
+            magnetic: false,
+            shieldBreak: false,
+            slowEffect: false
+        };
+        
         // Add to scene first
         scene.add.existing(this);
         
@@ -59,6 +70,9 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     }
 
     initializeProgram() {
+        // Apply PROPERTY nodes first
+        this.applyProperties();
+        
         // Set up timers for WHEN nodes
         this.program.forEach((node, index) => {
             if (node.type === 'when') {
@@ -68,6 +82,61 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
         
         // Execute immediate actions
         this.executeImmediateActions();
+    }
+
+    applyProperties() {
+        this.program.forEach(node => {
+            if (node.type === 'property') {
+                this.applyProperty(node);
+            }
+        });
+    }
+
+    applyProperty(propertyNode) {
+        switch (propertyNode.action) {
+            case 'homing':
+                this.properties.homing = true;
+                this.setTint(0xFF69B4); // Pink tint for homing bullets
+                console.log('Applied homing property');
+                break;
+                
+            case 'penetrate':
+                this.properties.penetrate = true;
+                this.setTint(0x00CED1); // Dark turquoise for penetrating bullets
+                console.log('Applied penetrate property');
+                break;
+                
+            case 'high-damage':
+                this.properties.highDamage = true;
+                this.damage *= 2;
+                this.setTint(0xFF4500); // Orange red for high damage
+                console.log('Applied high damage property - damage now:', this.damage);
+                break;
+                
+            case 'poison':
+                this.properties.poison = true;
+                this.setTint(0x32CD32); // Lime green for poison
+                console.log('Applied poison property');
+                break;
+                
+            case 'magnetic':
+                this.properties.magnetic = true;
+                this.setTint(0x8A2BE2); // Blue violet for magnetic
+                console.log('Applied magnetic property');
+                break;
+                
+            case 'shield-break':
+                this.properties.shieldBreak = true;
+                this.setTint(0xFFD700); // Gold for shield breaking
+                console.log('Applied shield break property');
+                break;
+                
+            case 'slow-effect':
+                this.properties.slowEffect = true;
+                this.setTint(0x4682B4); // Steel blue for slow effect
+                console.log('Applied slow effect property');
+                break;
+        }
     }
 
     setupWhenNode(node, index) {
@@ -146,7 +215,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     }
 
     arePreviousNodesSatisfied(doIndex) {
-        // Look backwards to find the controlling WHEN/IF nodes
+        // Look backwards to find the controlling WHEN/IF nodes (ignore PROPERTY nodes)
         let hasValidWhen = false;
         let hasValidIf = true; // Default to true if no IF node
         
@@ -159,6 +228,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             } else if (node.type === 'if') {
                 hasValidIf = this.evaluateCondition(node);
             }
+            // Skip PROPERTY nodes as they don't affect flow
         }
         
         return hasValidWhen && hasValidIf;
@@ -218,6 +288,61 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
                 this.destroy();
                 break;
         }
+    }
+
+    // PROPERTY implementations
+    updateHoming() {
+        if (!this.properties.homing || !this.body) return;
+        
+        const enemies = this.scene.enemies ? this.scene.enemies.children.entries : [];
+        if (enemies.length === 0) return;
+        
+        // Find closest enemy
+        let closestEnemy = null;
+        let closestDistance = Infinity;
+        
+        enemies.forEach(enemy => {
+            const distance = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestEnemy = enemy;
+            }
+        });
+        
+        if (closestEnemy) {
+            // Gradually turn towards target
+            const targetAngle = Phaser.Math.Angle.Between(this.x, this.y, closestEnemy.x, closestEnemy.y);
+            const currentAngle = Phaser.Math.Angle.Between(0, 0, this.body.velocity.x, this.body.velocity.y);
+            
+            // Smooth turning
+            const turnRate = 0.05; // How fast the bullet turns
+            const angleDiff = Phaser.Math.Angle.Wrap(targetAngle - currentAngle);
+            const newAngle = currentAngle + angleDiff * turnRate;
+            
+            this.setVelocity(
+                Math.cos(newAngle) * this.speed,
+                Math.sin(newAngle) * this.speed
+            );
+        }
+    }
+
+    updateMagnetic() {
+        if (!this.properties.magnetic) return;
+        
+        const enemies = this.scene.enemies ? this.scene.enemies.children.entries : [];
+        const magneticRange = 120;
+        
+        enemies.forEach(enemy => {
+            const distance = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
+            if (distance < magneticRange && enemy.body) {
+                // Pull enemy towards bullet
+                const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.x, this.y);
+                const pullForce = (magneticRange - distance) / magneticRange * 30;
+                
+                enemy.body.velocity.x += Math.cos(angle) * pullForce;
+                enemy.body.velocity.y += Math.sin(angle) * pullForce;
+            }
+        });
     }
 
     split() {
@@ -396,6 +521,15 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
     onEnemyCollision(enemy) {
         console.log('Bullet.onEnemyCollision called');
         
+        // Apply special property effects
+        if (this.properties.poison && enemy.applyPoison) {
+            enemy.applyPoison(this.damage);
+        }
+        
+        if (this.properties.slowEffect && enemy.applySlow) {
+            enemy.applySlow(0.5, 2000); // 50% speed for 2 seconds
+        }
+        
         // Trigger enemy contact events
         this.program.forEach((node, index) => {
             if (node.type === 'when' && node.action === 'enemy-contact') {
@@ -403,7 +537,7 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             }
         });
         
-        // Visual feedback for enemy hit - safe implementation
+        // Visual feedback for enemy hit
         try {
             const hitEffect = this.scene.add.circle(this.x, this.y, 12, 0xFF4444, 0.9);
             this.scene.tweens.add({
@@ -427,7 +561,12 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             enemy.takeDamage(this.damage);
         }
         
-        this.evaluateProgram();
+        // Check if bullet should be destroyed (not if penetrating)
+        if (!this.properties.penetrate) {
+            this.evaluateProgram();
+        } else {
+            console.log('Bullet penetrated enemy');
+        }
     }
 
     update() {
@@ -442,6 +581,10 @@ class Bullet extends Phaser.Physics.Arcade.Sprite {
             this.destroy();
             return;
         }
+        
+        // Apply continuous property effects
+        this.updateHoming();
+        this.updateMagnetic();
         
         // Add subtle rotation for visual appeal (only for PNG sprites)
         if (this.texture.key === 'bullet-sprite') {
