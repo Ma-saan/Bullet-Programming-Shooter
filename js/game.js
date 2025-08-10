@@ -1,4 +1,4 @@
-// Main Game Logic
+// Main Game Logic with Game Over functionality
 class GameScene extends Phaser.Scene {
     constructor() {
         super({ key: 'GameScene' });
@@ -10,6 +10,8 @@ class GameScene extends Phaser.Scene {
         this.score = 0;
         this.stage = 1;
         this.enemySpawnTimer = 0;
+        this.isGameOver = false;  // ★ GAME OVER FLAG ADDED
+        this.gameOverUI = null;   // ★ GAME OVER UI ELEMENTS
         this.gameConfig = {
             playerSpeed: 200,
             enemySpeed: 50,
@@ -85,6 +87,10 @@ class GameScene extends Phaser.Scene {
     create() {
         console.log('GameScene create() called');
         
+        // ★ RESET GAME OVER STATE
+        this.isGameOver = false;
+        this.gameOverUI = null;
+        
         // Update debug status
         if (document.getElementById('game-status')) {
             document.getElementById('game-status').textContent = 'YES';
@@ -131,9 +137,9 @@ class GameScene extends Phaser.Scene {
 
         console.log('Player created at:', this.player.x, this.player.y, 'using texture:', playerTexture);
 
-        // Set up controls
+        // Set up controls - ★ ADDED R KEY FOR RESTART
         this.cursors = this.input.keyboard.createCursorKeys();
-        this.wasd = this.input.keyboard.addKeys('W,S,A,D,SPACE');
+        this.wasd = this.input.keyboard.addKeys('W,S,A,D,SPACE,R');
 
         // Set up collisions
         this.physics.add.overlap(this.bullets, this.enemies, this.bulletHitsEnemy, null, this);
@@ -157,14 +163,12 @@ class GameScene extends Phaser.Scene {
             strokeThickness: 2
         }).setOrigin(0.5);
 
-        // Update instructions to mention the new sprites
-        const instructionText = this.textures.exists('player-sprite') ? 
-            'WASD: Move | Space: Fire | 🔧 RPA編集: Program bullets | 🎨 Using custom PNG sprites!' :
-            'WASD: Move | Space: Fire | 🔧 RPA編集: Program bullets | 🎮 Upload PNGs to assets/images/ for custom sprites!';
+        // ★ UPDATED INSTRUCTIONS TO MENTION GAME OVER
+        const instructionText = '⚠️ 敵に当たるとゲームオーバー！ | WASD: Move | Space: Fire | R: Restart | 🔧 RPA編集: Program bullets';
         
         this.add.text(gameWidth / 2, 100, instructionText, {
             fontSize: '16px',
-            fill: '#cccccc',
+            fill: '#ffcccc',
             stroke: '#000000',
             strokeThickness: 1
         }).setOrigin(0.5);
@@ -182,7 +186,7 @@ class GameScene extends Phaser.Scene {
             });
         }
 
-        console.log('Game initialized successfully with custom PNG sprites!');
+        console.log('🎮 Game initialized with GAME OVER functionality!');
     }
 
     createStarField() {
@@ -208,6 +212,14 @@ class GameScene extends Phaser.Scene {
     }
 
     update(time, delta) {
+        // ★ CHECK FOR RESTART KEY WHEN GAME OVER
+        if (this.isGameOver) {
+            if (Phaser.Input.Keyboard.JustDown(this.wasd.R)) {
+                this.restartGame();
+            }
+            return; // Don't update game logic when game over
+        }
+
         // Only handle input if modal is not open
         if (!window.modalManager || !window.modalManager.isModalOpen()) {
             this.handlePlayerMovement();
@@ -237,6 +249,8 @@ class GameScene extends Phaser.Scene {
     }
 
     handlePlayerMovement() {
+        if (this.isGameOver) return; // ★ NO MOVEMENT WHEN GAME OVER
+        
         const speed = this.gameConfig.playerSpeed;
         
         // Reset velocity
@@ -266,6 +280,8 @@ class GameScene extends Phaser.Scene {
     }
 
     handleEnemySpawning(time) {
+        if (this.isGameOver) return; // ★ NO SPAWNING WHEN GAME OVER
+        
         if (time > this.enemySpawnTimer) {
             this.spawnEnemy();
             this.enemySpawnTimer = time + this.gameConfig.enemySpawnDelay;
@@ -287,12 +303,16 @@ class GameScene extends Phaser.Scene {
         // Spawn initial enemies
         for (let i = 0; i < 3; i++) {
             setTimeout(() => {
-                this.spawnEnemy();
+                if (!this.isGameOver) {
+                    this.spawnEnemy();
+                }
             }, i * 1000);
         }
     }
 
     testFire(program = null) {
+        if (this.isGameOver) return; // ★ NO FIRING WHEN GAME OVER
+        
         console.log('testFire called');
         
         if (!program && window.rpaProgram) {
@@ -310,7 +330,6 @@ class GameScene extends Phaser.Scene {
         if (!program || program.length === 0) {
             console.log('No valid program found, creating default normal bullet...');
             // Create a normal bullet that flies straight and gets destroyed on enemy contact
-            // This is the standard behavior for shooting games
             program = [
                 { type: 'when', action: 'enemy-contact', toString: () => '敵に接触時' },
                 { type: 'do', action: 'destroy', toString: () => '消える' }
@@ -336,9 +355,8 @@ class GameScene extends Phaser.Scene {
         this.bullets.add(bullet);
         
         console.log('Bullet added to bullets group. Current bullet count:', this.bullets.children.entries.length);
-        console.log('Bullet velocity:', bullet.body.velocity.x, bullet.body.velocity.y);
 
-        // Muzzle flash effect (removed camera shake for better experience)
+        // Muzzle flash effect
         const muzzleFlash = this.add.circle(this.player.x + 20, this.player.y, 8, 0xFFFF00, 0.8);
         this.tweens.add({
             targets: muzzleFlash,
@@ -348,15 +366,11 @@ class GameScene extends Phaser.Scene {
             duration: 100,
             onComplete: () => muzzleFlash.destroy()
         });
-        
-        // Show program info
-        const programText = program.map(node => 
-            typeof node.toString === 'function' ? node.toString() : node.action
-        ).join(' → ');
-        console.log('Fired bullet with program:', programText);
     }
 
     bulletHitsEnemy(bullet, enemy) {
+        if (this.isGameOver) return; // ★ NO INTERACTIONS WHEN GAME OVER
+        
         console.log('Bullet hit enemy');
         if (bullet.onEnemyCollision) {
             bullet.onEnemyCollision(enemy);
@@ -370,22 +384,163 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    // ★★★ MAIN CHANGE: GAME OVER INSTEAD OF ENEMY DESTRUCTION ★★★
     playerHitsEnemy(player, enemy) {
-        console.log('Player hit enemy');
-        // Player takes damage or game over logic
-        this.cameras.main.shake(200, 0.02);
+        if (this.isGameOver) return; // Prevent multiple game overs
         
-        // Visual feedback
+        console.log('💀💀💀 GAME OVER - Player hit enemy! 💀💀💀');
+        
+        // ★ SET GAME OVER STATE
+        this.isGameOver = true;
+        
+        // ★ MASSIVE CAMERA SHAKE FOR DRAMATIC EFFECT
+        this.cameras.main.shake(800, 0.08);
+        
+        // ★ STOP PLAYER AND TURN RED
+        player.setVelocity(0);
         player.setTint(0xff0000);
-        this.time.delayedCall(200, () => {
-            player.clearTint();
+        
+        // ★ STOP ALL ENEMIES
+        this.enemies.children.entries.forEach(enemy => {
+            enemy.setVelocity(0);
         });
         
-        // Destroy enemy on contact
-        enemy.takeDamage(999);
+        // ★ CLEAR ALL BULLETS
+        this.bullets.children.entries.forEach(bullet => {
+            if (bullet.destroy) {
+                bullet.destroy();
+            }
+        });
         
-        // Reduce score as penalty
-        this.addScore(-5);
+        // ★ DRAMATIC EXPLOSION EFFECT AT COLLISION POINT
+        const explosionX = (player.x + enemy.x) / 2;
+        const explosionY = (player.y + enemy.y) / 2;
+        
+        // ★ CREATE MULTIPLE EXPLOSION RINGS
+        for (let i = 0; i < 6; i++) {
+            const explosion = this.add.circle(explosionX, explosionY, 15 + i * 20, 0xff0000, 0.9 - i * 0.1);
+            this.tweens.add({
+                targets: explosion,
+                scaleX: 4 + i,
+                scaleY: 4 + i,
+                alpha: 0,
+                duration: 600 + i * 300,
+                ease: 'Power3',
+                onComplete: () => explosion.destroy()
+            });
+        }
+        
+        // ★ SHOW GAME OVER SCREEN AFTER DELAY
+        this.time.delayedCall(1500, () => {
+            this.showGameOverScreen();
+        });
+        
+        console.log('🎮 Game Over initiated - Final Score:', this.score);
+    }
+
+    // ★ GAME OVER SCREEN IMPLEMENTATION
+    showGameOverScreen() {
+        const gameWidth = this.sys.game.config.width;
+        const gameHeight = this.sys.game.config.height;
+        
+        // ★ CREATE SEMI-TRANSPARENT OVERLAY
+        const overlay = this.add.rectangle(gameWidth / 2, gameHeight / 2, gameWidth, gameHeight, 0x000000, 0.8);
+        
+        // ★ GAME OVER TITLE WITH DRAMATIC EFFECT
+        const gameOverText = this.add.text(gameWidth / 2, gameHeight / 2 - 120, '💀 GAME OVER 💀', {
+            fontSize: '72px',
+            fill: '#ff0000',
+            stroke: '#000000',
+            strokeThickness: 6,
+            fontWeight: 'bold'
+        }).setOrigin(0.5);
+        
+        // ★ PULSING EFFECT FOR GAME OVER TEXT
+        this.tweens.add({
+            targets: gameOverText,
+            scaleX: 1.1,
+            scaleY: 1.1,
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        // ★ FINAL SCORE DISPLAY
+        const scoreText = this.add.text(gameWidth / 2, gameHeight / 2 - 20, `最終スコア: ${this.score}`, {
+            fontSize: '36px',
+            fill: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 3
+        }).setOrigin(0.5);
+        
+        // ★ RESTART INSTRUCTIONS
+        const restartText = this.add.text(gameWidth / 2, gameHeight / 2 + 50, 'Rキーを押してリスタート', {
+            fontSize: '28px',
+            fill: '#4CAF50',
+            stroke: '#000000',
+            strokeThickness: 2
+        }).setOrigin(0.5);
+        
+        // ★ BLINKING EFFECT FOR RESTART TEXT
+        this.tweens.add({
+            targets: restartText,
+            alpha: 0.3,
+            duration: 800,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Power2'
+        });
+        
+        // ★ ENCOURAGING MESSAGE BASED ON SCORE
+        let encouragementMsg = '';
+        if (this.score === 0) {
+            encouragementMsg = '弾丸で敵を倒してスコアを稼ごう！';
+        } else if (this.score < 30) {
+            encouragementMsg = 'ホーミング弾を使ってみよう！';
+        } else if (this.score < 80) {
+            encouragementMsg = 'いい調子！もっと上を目指そう！';
+        } else {
+            encouragementMsg = 'エキスパートの腕前！素晴らしい！';
+        }
+        
+        const encouragementText = this.add.text(gameWidth / 2, gameHeight / 2 + 120, encouragementMsg, {
+            fontSize: '20px',
+            fill: '#ffff00',
+            stroke: '#000000',
+            strokeThickness: 1
+        }).setOrigin(0.5);
+        
+        // ★ STORE UI ELEMENTS FOR CLEANUP
+        this.gameOverUI = {
+            overlay,
+            gameOverText,
+            scoreText,
+            restartText,
+            encouragementText
+        };
+        
+        console.log('💀 Game Over screen displayed');
+    }
+
+    // ★ RESTART GAME FUNCTIONALITY
+    restartGame() {
+        console.log('🔄 Restarting game...');
+        
+        // ★ CLEAN UP GAME OVER UI
+        if (this.gameOverUI) {
+            Object.values(this.gameOverUI).forEach(element => {
+                if (element && element.destroy) {
+                    element.destroy();
+                }
+            });
+            this.gameOverUI = null;
+        }
+        
+        // ★ RESTART THE SCENE COMPLETELY
+        this.scene.restart();
+        
+        console.log('🎮 Game restarted successfully!');
     }
 
     onWorldBounds(event) {
@@ -400,6 +555,8 @@ class GameScene extends Phaser.Scene {
     }
 
     addScore(points) {
+        if (this.isGameOver) return; // ★ NO SCORING WHEN GAME OVER
+        
         this.score += points;
         if (this.score < 0) this.score = 0;
         this.updateHUD();
@@ -434,7 +591,7 @@ class GameScene extends Phaser.Scene {
     }
 }
 
-// Enhanced Enemy class with PROPERTY effect support
+// Enhanced Enemy class remains mostly the same
 class Enemy extends Phaser.Physics.Arcade.Sprite {
     constructor(scene, x, y) {
         // Use the appropriate enemy texture
@@ -445,34 +602,8 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         scene.add.existing(this);
         scene.physics.add.existing(this);
         
-        // Basic properties
         this.health = 1;
-        this.maxHealth = 1;
-        this.baseSpeed = scene.gameConfig.enemySpeed;
-        this.speed = this.baseSpeed;
-        
-        // Status effects
-        this.statusEffects = {
-            poison: {
-                active: false,
-                damage: 0,
-                tickInterval: 1000, // 1 second
-                lastTick: 0,
-                visual: null
-            },
-            slow: {
-                active: false,
-                multiplier: 1.0,
-                duration: 0,
-                remaining: 0,
-                visual: null
-            },
-            shield: {
-                active: false,
-                health: 0,
-                visual: null
-            }
-        };
+        this.speed = scene.gameConfig.enemySpeed;
         
         // Add visual effects based on texture type
         if (enemyTexture === 'enemy-sprite') {
@@ -484,22 +615,19 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         // Move towards player initially
         this.moveTowardsPlayer();
         
-        console.log('Enhanced Enemy created at:', x, y, 'using texture:', enemyTexture);
+        console.log('Enemy created at:', x, y, 'using texture:', enemyTexture);
     }
 
     moveTowardsPlayer() {
-        if (this.scene.player) {
+        if (this.scene.player && !this.scene.isGameOver) { // ★ CHECK GAME OVER STATE
             const angle = Phaser.Math.Angle.Between(
                 this.x, this.y,
                 this.scene.player.x, this.scene.player.y
             );
             
-            // Apply slow effect
-            const effectiveSpeed = this.speed * this.statusEffects.slow.multiplier;
-            
             this.setVelocity(
-                Math.cos(angle) * effectiveSpeed,
-                Math.sin(angle) * effectiveSpeed
+                Math.cos(angle) * this.speed,
+                Math.sin(angle) * this.speed
             );
             
             // Rotate enemy to face movement direction
@@ -507,139 +635,11 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         }
     }
 
-    applyPoison(damage, duration = 5000) {
-        console.log('Enemy poisoned with damage:', damage, 'for duration:', duration);
+    takeDamage(damage = 1) {
+        if (this.scene.isGameOver) return; // ★ NO DAMAGE WHEN GAME OVER
         
-        this.statusEffects.poison.active = true;
-        this.statusEffects.poison.damage = damage * 0.5; // Poison does half damage over time
-        this.statusEffects.poison.lastTick = this.scene.time.now;
-        
-        // Visual effect for poison
-        if (!this.statusEffects.poison.visual) {
-            this.statusEffects.poison.visual = this.scene.add.circle(this.x, this.y, 12, 0x32CD32, 0.4);
-            this.statusEffects.poison.visual.setBlendMode(Phaser.BlendModes.ADD);
-        }
-        
-        // Remove poison after duration
-        this.scene.time.delayedCall(duration, () => {
-            this.removePoison();
-        });
-    }
-
-    removePoison() {
-        this.statusEffects.poison.active = false;
-        if (this.statusEffects.poison.visual) {
-            this.statusEffects.poison.visual.destroy();
-            this.statusEffects.poison.visual = null;
-        }
-        console.log('Poison effect removed');
-    }
-
-    applySlow(multiplier, duration) {
-        console.log('Enemy slowed with multiplier:', multiplier, 'for duration:', duration);
-        
-        this.statusEffects.slow.active = true;
-        this.statusEffects.slow.multiplier = multiplier;
-        this.statusEffects.slow.duration = duration;
-        this.statusEffects.slow.remaining = duration;
-        
-        // Visual effect for slow
-        if (!this.statusEffects.slow.visual) {
-            this.statusEffects.slow.visual = this.scene.add.circle(this.x, this.y, 16, 0x4682B4, 0.3);
-            this.statusEffects.slow.visual.setBlendMode(Phaser.BlendModes.MULTIPLY);
-            
-            // Pulsing effect
-            this.scene.tweens.add({
-                targets: this.statusEffects.slow.visual,
-                scaleX: 1.2,
-                scaleY: 1.2,
-                alpha: 0.1,
-                duration: 500,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
-        }
-        
-        // Remove slow after duration
-        this.scene.time.delayedCall(duration, () => {
-            this.removeSlow();
-        });
-    }
-
-    removeSlow() {
-        this.statusEffects.slow.active = false;
-        this.statusEffects.slow.multiplier = 1.0;
-        if (this.statusEffects.slow.visual) {
-            this.statusEffects.slow.visual.destroy();
-            this.statusEffects.slow.visual = null;
-        }
-        console.log('Slow effect removed');
-    }
-
-    applyShield(shieldHealth) {
-        console.log('Enemy gained shield with health:', shieldHealth);
-        
-        this.statusEffects.shield.active = true;
-        this.statusEffects.shield.health = shieldHealth;
-        
-        // Visual effect for shield
-        if (!this.statusEffects.shield.visual) {
-            this.statusEffects.shield.visual = this.scene.add.circle(this.x, this.y, 20, 0xFFD700, 0.3);
-            this.statusEffects.shield.visual.setStrokeStyle(2, 0xFFD700, 0.8);
-            
-            // Rotating effect
-            this.scene.tweens.add({
-                targets: this.statusEffects.shield.visual,
-                rotation: Math.PI * 2,
-                duration: 2000,
-                repeat: -1,
-                ease: 'Linear'
-            });
-        }
-    }
-
-    removeShield() {
-        this.statusEffects.shield.active = false;
-        this.statusEffects.shield.health = 0;
-        if (this.statusEffects.shield.visual) {
-            // Shield break effect
-            const breakEffect = this.scene.add.circle(this.x, this.y, 25, 0xFFD700, 0.8);
-            this.scene.tweens.add({
-                targets: breakEffect,
-                scaleX: 2,
-                scaleY: 2,
-                alpha: 0,
-                duration: 300,
-                onComplete: () => breakEffect.destroy()
-            });
-            
-            this.statusEffects.shield.visual.destroy();
-            this.statusEffects.shield.visual = null;
-        }
-        console.log('Shield broken');
-    }
-
-    takeDamage(damage = 1, isShieldBreaking = false) {
-        console.log('Enemy taking damage:', damage, 'shield breaking:', isShieldBreaking);
-        
-        // Handle shield
-        if (this.statusEffects.shield.active && !isShieldBreaking) {
-            this.statusEffects.shield.health -= damage;
-            if (this.statusEffects.shield.health <= 0) {
-                this.removeShield();
-            }
-            // Visual feedback for shield hit
-            this.setTint(0xFFD700);
-            this.scene.time.delayedCall(100, () => {
-                this.clearTint();
-            });
-            return; // Shield absorbed the damage
-        }
-        
-        // Apply damage to health
         this.health -= damage;
-        console.log('Enemy health after damage:', this.health);
+        console.log('Enemy took damage:', damage, 'remaining health:', this.health);
         
         // Visual feedback
         this.setTint(0xffffff);
@@ -649,11 +649,6 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         
         if (this.health <= 0) {
             this.scene.addScore(10);
-            
-            // Clean up status effects
-            this.removePoison();
-            this.removeSlow();
-            this.removeShield();
             
             // Death effect
             const explosion = this.scene.add.circle(this.x, this.y, 20, 0xff6600, 0.7);
@@ -686,40 +681,9 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     update() {
-        // Update status effect visuals position
-        if (this.statusEffects.poison.visual) {
-            this.statusEffects.poison.visual.setPosition(this.x, this.y);
-        }
-        if (this.statusEffects.slow.visual) {
-            this.statusEffects.slow.visual.setPosition(this.x, this.y);
-        }
-        if (this.statusEffects.shield.visual) {
-            this.statusEffects.shield.visual.setPosition(this.x, this.y);
-        }
-        
-        // Handle poison damage
-        if (this.statusEffects.poison.active) {
-            const now = this.scene.time.now;
-            if (now - this.statusEffects.poison.lastTick >= this.statusEffects.poison.tickInterval) {
-                this.takeDamage(this.statusEffects.poison.damage);
-                this.statusEffects.poison.lastTick = now;
-                
-                // Poison damage visual effect
-                const poisonDamage = this.scene.add.text(this.x, this.y - 20, '-' + this.statusEffects.poison.damage.toFixed(1), {
-                    fontSize: '12px',
-                    fill: '#32CD32',
-                    stroke: '#000000',
-                    strokeThickness: 1
-                }).setOrigin(0.5);
-                
-                this.scene.tweens.add({
-                    targets: poisonDamage,
-                    y: this.y - 40,
-                    alpha: 0,
-                    duration: 1000,
-                    onComplete: () => poisonDamage.destroy()
-                });
-            }
+        if (this.scene.isGameOver) {
+            this.setVelocity(0); // ★ STOP WHEN GAME OVER
+            return;
         }
         
         // Periodically adjust direction towards player
@@ -730,10 +694,6 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         // Remove enemies that go too far off screen
         if (this.x < -100 || this.x > this.scene.sys.game.config.width + 100 ||
             this.y < -100 || this.y > this.scene.sys.game.config.height + 100) {
-            // Clean up status effects before destroying
-            this.removePoison();
-            this.removeSlow();
-            this.removeShield();
             this.destroy();
         }
     }
@@ -741,7 +701,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
 
 // Game initialization with error handling
 function initializeGame() {
-    console.log('Initializing game...');
+    console.log('🎮 Initializing game with GAME OVER functionality...');
     
     if (typeof Phaser === 'undefined') {
         console.error('Phaser.js not loaded!');
@@ -780,7 +740,7 @@ function initializeGame() {
             game.scale.resize(window.innerWidth, window.innerHeight);
         });
         
-        console.log('Game created successfully with custom PNG sprites support');
+        console.log('🎮 Game created successfully with GAME OVER functionality!');
         return game;
     } catch (error) {
         console.error('Failed to initialize game:', error);
