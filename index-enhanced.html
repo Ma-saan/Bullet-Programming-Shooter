@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="弾道プログラミングシューター - プレイヤーが弾丸の挙動をRPAでプログラミングして敵を倒すシューティングゲーム">
+    <meta name="keywords" content="シューティングゲーム,プログラミング,RPA,ゲーム開発,JavaScript,Phaser">
+    <title>Bullet Programming Shooter - 弾道プログラミングシューター</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Open Graph meta tags for social sharing -->
+    <meta property="og:title" content="Bullet Programming Shooter">
+    <meta property="og:description" content="弾丸の挙動をプログラミングして敵を倒すユニークなシューティングゲーム">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://via.placeholder.com/1200x630/000011/ffffff?text=Bullet+Programming+Shooter">
+    <meta property="og:url" content="https://ma-saan.github.io/Bullet-Programming-Shooter/">
+    
+    <!-- Twitter Card meta tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Bullet Programming Shooter">
+    <meta name="twitter:description" content="弾丸の挙動をプログラミングして敵を倒すユニークなシューティングゲーム">
+    <meta name="twitter:image" content="https://via.placeholder.com/1200x630/000011/ffffff?text=Bullet+Programming+Shooter">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    
+    <!-- Try multiple CDN sources for better reliability -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.70.0/phaser.min.js" 
+            onerror="this.onerror=null; this.src='https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js'"></script>
+    
+    <!-- Google Analytics or other tracking can be added here -->
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" style="display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000011; z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; color: white;">
+        <div style="font-size: 32px; margin-bottom: 20px;">🚀</div>
+        <div style="font-size: 24px; margin-bottom: 10px;">Bullet Programming Shooter</div>
+        <div style="font-size: 16px; opacity: 0.8;">Enhanced Homing System Loading...</div>
+        <div style="margin-top: 20px;">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+    
+    <!-- Main Game Container (Full Screen) -->
+    <div id="game-container">
+        <div id="game-canvas"></div>
+    </div>
+
+    <!-- Game HUD -->
+    <div id="hud">
+        <div id="score">Score: 0</div>
+        <div id="stage">Stage: 1</div>
+        <button id="open-rpa-editor" class="hud-button">🔧 RPA編集</button>
+    </div>
+
+    <!-- RPA Editor Modal -->
+    <div id="rpa-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🚀 弾丸プログラミング (ホーミング強化版)</h2>
+                <button id="close-rpa-editor" class="close-button">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="editor-layout">
+                    <!-- Node Palette -->
+                    <div class="node-palette-section">
+                        <h3>ノードパレット</h3>
+                        <div id="node-palette">
+                            <div class="node-category">
+                                <h4>🔮 PROPERTY (属性)</h4>
+                                <div class="node-grid">
+                                    <div class="node" data-type="property" data-action="homing" title="敵を追尾する機能 - ピンクのトレイル効果">ホーミング</div>
+                                    <div class="node" data-type="property" data-action="penetrate" title="敵を貫通する機能">貫通</div>
+                                    <div class="node" data-type="property" data-action="high-damage" title="ダメージ2倍">高威力</div>
+                                    <div class="node" data-type="property" data-action="poison" title="継続ダメージ効果">継続ダメージ</div>
+                                    <div class="node" data-type="property" data-action="magnetic" title="敵を引き寄せる">磁力効果</div>
+                                    <div class="node" data-type="property" data-action="shield-break" title="シールドを無視">シールド貫通</div>
+                                    <div class="node" data-type="property" data-action="slow-effect" title="敵の動きを遅くする">時間遅延</div>
+                                </div>
+                            </div>
+                            
+                            <div class="node-category">
+                                <h4>⏰ WHEN (いつ)</h4>
+                                <div class="node-grid">
+                                    <div class="node" data-type="when" data-action="immediate">即座に</div>
+                                    <div class="node" data-type="when" data-action="timer-1">1秒後</div>
+                                    <div class="node" data-type="when" data-action="timer-2">2秒後</div>
+                                    <div class="node" data-type="when" data-action="enemy-contact">敵に接触時</div>
+                                    <div class="node" data-type="when" data-action="wall-contact">壁に接触時</div>
+                                </div>
+                            </div>
+                            
+                            <div class="node-category">
+                                <h4>🤔 IF (もし)</h4>
+                                <div class="node-grid">
+                                    <div class="node" data-type="if" data-action="enemy-near">敵が近い</div>
+                                    <div class="node" data-type="if" data-action="enemy-far">敵が遠い</div>
+                                    <div class="node" data-type="if" data-action="enemy-many">敵が3体以上</div>
+                                    <div class="node" data-type="if" data-action="no-enemy">敵がいない</div>
+                                </div>
+                            </div>
+                            
+                            <div class="node-category">
+                                <h4>⚡ DO (実行)</h4>
+                                <div class="node-grid">
+                                    <div class="node" data-type="do" data-action="split">分裂する</div>
+                                    <div class="node" data-type="do" data-action="explode">爆発する</div>
+                                    <div class="node" data-type="do" data-action="bounce">跳ね返る</div>
+                                    <div class="node" data-type="do" data-action="speed-up">速くなる</div>
+                                    <div class="node" data-type="do" data-action="destroy">消える</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Program Slots -->
+                    <div class="program-section">
+                        <h3>プログラムスロット</h3>
+                        <div id="rpa-slots">
+                            <div class="slot-container">
+                                <h4>スロット 1</h4>
+                                <div class="slot" data-slot="0">
+                                    <span class="slot-placeholder">ノードをここにドラッグ</span>
+                                </div>
+                            </div>
+                            <div class="slot-container">
+                                <h4>スロット 2</h4>
+                                <div class="slot" data-slot="1">
+                                    <span class="slot-placeholder">ノードをここにドラッグ</span>
+                                </div>
+                            </div>
+                            <div class="slot-container">
+                                <h4>スロット 3</h4>
+                                <div class="slot" data-slot="2">
+                                    <span class="slot-placeholder">ノードをここにドラッグ</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Control Buttons -->
+                        <div class="editor-controls">
+                            <button id="clear-program" class="control-button danger">🗑️ 全てクリア</button>
+                            <button id="test-fire" class="control-button primary">🚀 テスト発射</button>
+                            <button id="save-and-close" class="control-button success">✓ 保存して閉じる</button>
+                            <!-- Quick homing test button will be added by JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Enhanced Example Programs -->
+                <div class="examples-section">
+                    <h3>📚 プログラム例 (ホーミング強化版)</h3>
+                    <div class="example-grid">
+                        <div class="example-card" data-example="basic-homing" style="border-color: #FF69B4;">
+                            <h4>🎯 基本ホーミング弾</h4>
+                            <p>[ホーミング] → [即座に] → [消える]</p>
+                            <small style="color: #FF69B4;">★ 初心者向け</small>
+                        </div>
+                        <div class="example-card" data-example="homing-bomb" style="border-color: #FF69B4;">
+                            <h4>🎯 ホーミング爆弾</h4>
+                            <p>[ホーミング] → [2秒後] → [爆発する]</p>
+                            <small style="color: #FF69B4;">★ おすすめ</small>
+                        </div>
+                        <div class="example-card" data-example="homing-penetrate" style="border-color: #FF69B4;">
+                            <h4>🎯 ホーミング貫通弾</h4>
+                            <p>[ホーミング] + [貫通] → [2秒後] → [消える]</p>
+                            <small style="color: #FF69B4;">★ 実用的</small>
+                        </div>
+                        <div class="example-card" data-example="smart-homing" style="border-color: #FF69B4;">
+                            <h4>🎯 スマートホーミング</h4>
+                            <p>[ホーミング] → [1秒後] → [敵が近い] → [爆発する]</p>
+                            <small style="color: #FF69B4;">★ 中級者向け</small>
+                        </div>
+                        <div class="example-card" data-example="ultimate-homing" style="border-color: #FF69B4;">
+                            <h4>🎯 究極ホーミング弾</h4>
+                            <p>[ホーミング] + [高威力] + [貫通] → [2秒後] → [分裂する]</p>
+                            <small style="color: #FF69B4;">★ 上級者向け</small>
+                        </div>
+                        <div class="example-card" data-example="timer-bomb">
+                            <h4>時限爆弾</h4>
+                            <p>[2秒後] → [爆発する]</p>
+                        </div>
+                        <div class="example-card" data-example="bounce-bullet">
+                            <h4>跳弾</h4>
+                            <p>[壁に接触時] → [跳ね返る]</p>
+                        </div>
+                        <div class="example-card" data-example="smart-split">
+                            <h4>賢い分裂弾</h4>
+                            <p>[1秒後] → [敵が3体以上] → [分裂する]</p>
+                        </div>
+                        <div class="example-card" data-example="poison-magnetic">
+                            <h4>毒磁力弾</h4>
+                            <p>[継続ダメージ] + [磁力効果] → [即座に] → [爆発する]</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Homing Tips -->
+                    <div style="background: rgba(255, 105, 180, 0.1); border: 2px solid #FF69B4; border-radius: 10px; padding: 20px; margin-top: 20px;">
+                        <h4 style="color: #FF69B4; margin-bottom: 15px;">🎯 ホーミング弾のコツ</h4>
+                        <ul style="color: #ccc; font-size: 14px; line-height: 1.6;">
+                            <li><strong>視覚効果</strong>: ピンク色のトレイルとパルシングリングで追尾を確認</li>
+                            <li><strong>追尾範囲</strong>: 画面全体の敵を検知、最も近い敵を自動選択</li>
+                            <li><strong>組み合わせ</strong>: [貫通]と組み合わせて長時間追尾を楽しむ</li>
+                            <li><strong>タイミング</strong>: [2秒後]で時間制限を設けて適度な追尾時間に</li>
+                            <li><strong>敵が必要</strong>: 追尾する敵がいない場合は直進します</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Panel (initially hidden) -->
+    <div id="info-panel" style="display: none; position: absolute; top: 120px; right: 10px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 5px; font-size: 14px; max-width: 300px;">
+        <h4>🎮 操作方法</h4>
+        <ul>
+            <li><strong>W/A/S/D:</strong> プレイヤー移動</li>
+            <li><strong>スペース:</strong> 弾丸発射</li>
+            <li><strong>🔧 RPA編集:</strong> プログラム作成</li>
+        </ul>
+        <h4 style="color: #FF69B4;">🎯 ホーミング弾の確認方法</h4>
+        <ul>
+            <li>ピンク色のトレイル効果</li>
+            <li>弾丸が敵を追尾する動き</li>
+            <li>パルシングリングエフェクト</li>
+        </ul>
+        <button onclick="document.getElementById('info-panel').style.display='none'" style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; float: right;">閉じる</button>
+    </div>
+
+    <!-- Toggle Info Button -->
+    <button id="toggle-info" style="position: absolute; top: 120px; right: 10px; background: #4CAF50; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; z-index: 1000;">❓ヘルプ</button>
+
+    <!-- Debug info for troubleshooting -->
+    <div id="debug-info" style="position: absolute; top: 160px; left: 10px; color: white; font-size: 12px; background: rgba(0,0,0,0.7); padding: 5px; border-radius: 3px;">
+        <div>Phaser loaded: <span id="phaser-status">checking...</span></div>
+        <div>Game initialized: <span id="game-status">waiting...</span></div>
+        <div>Homing system: <span style="color: #FF69B4;">Enhanced</span></div>
+    </div>
+
+    <!-- CSS for loading spinner -->
+    <style>
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #FF69B4;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Enhanced styles for homing examples */
+        .example-card[data-example*="homing"] {
+            background: linear-gradient(135deg, #2a1a2a, #3a2a3a);
+            box-shadow: 0 4px 15px rgba(255, 105, 180, 0.2);
+        }
+        
+        .example-card[data-example*="homing"]:hover {
+            box-shadow: 0 8px 25px rgba(255, 105, 180, 0.4);
+            transform: translateY(-5px);
+        }
+        
+        .node[data-action="homing"] {
+            background: linear-gradient(135deg, #FF1493, #FF69B4);
+            box-shadow: 0 0 10px rgba(255, 105, 180, 0.5);
+        }
+        
+        .node[data-action="homing"]:hover {
+            box-shadow: 0 0 20px rgba(255, 105, 180, 0.8);
+        }
+    </style>
+
+    <script>
+        // Debug check for Phaser
+        document.getElementById('phaser-status').textContent = typeof Phaser !== 'undefined' ? 'YES' : 'NO';
+        
+        // Log any errors
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+        });
+        
+        // Hide loading screen when game is ready
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                document.getElementById('loading-screen').style.display = 'none';
+            }, 1500);
+        });
+        
+        // Toggle info panel
+        document.getElementById('toggle-info').addEventListener('click', function() {
+            const infoPanel = document.getElementById('info-panel');
+            infoPanel.style.display = infoPanel.style.display === 'none' ? 'block' : 'none';
+        });
+        
+        // Show welcome message for homing system
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                if (localStorage.getItem('homingWelcomeShown') !== 'true') {
+                    alert('🎯 ホーミングシステムが強化されました！\n\n• より高い追尾性能\n• 美しいピンクトレイル効果\n• 簡単テスト機能\n\n「🎯 ホーミングテスト」ボタンで即座に体験できます！');
+                    localStorage.setItem('homingWelcomeShown', 'true');
+                }
+            }, 3000);
+        });
+    </script>
+
+    <!-- Load enhanced versions of JS files -->
+    <script src="js/rpa-improved.js"></script>
+    <script src="js/bullet-improved.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
